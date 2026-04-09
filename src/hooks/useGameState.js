@@ -82,6 +82,15 @@ export function useGameState(puzzle, settings) {
     setNotes(prev.notes)
   }, [history])
 
+  const fillAll = useCallback(() => {
+    const filled = cells.map((c, i) =>
+      c.isGiven ? c : { ...c, digit: parseInt(puzzle.solution[i], 10) }
+    )
+    setCells(filled)
+    setNotes(Array(81).fill(null).map(() => new Set()))
+    setComplete(true)
+  }, [cells, puzzle])
+
   const useHint = useCallback(() => {
     if (selected === null || hintsLeft <= 0) return
     if (cells[selected].isGiven) return
@@ -114,6 +123,6 @@ export function useGameState(puzzle, settings) {
     notesMode, setNotesMode,
     hintsLeft, hintPenalty, mistakes, complete,
     conflicts, peers, sameDigits,
-    enterDigit, erase, undo, useHint,
+    enterDigit, erase, undo, useHint, fillAll,
   }
 }

@@ -31,6 +31,7 @@ export default function MultiplayerGameScreen({
   const [eliminated, setEliminated]   = useState(false)
   const [myFinished, setMyFinished]   = useState(false)
   const [myFinishTime, setMyFinishTime] = useState(null)
+  const [showCheat, setShowCheat]     = useState(false)
 
   // ── Other players' states ──────────────────────────────────────
   const [allPlayers, setAllPlayers] = useState([])
@@ -222,6 +223,19 @@ export default function MultiplayerGameScreen({
     await persistCells(newCells, extraFields)
   }
 
+  async function cheatFill() {
+    if (myFinished || eliminated) return
+    const newCells = cells.map((c, i) =>
+      c.isGiven ? c : { ...c, digit: parseInt(solution[i], 10), correct: true }
+    )
+    setCells(newCells)
+    setNotes(Array.from({ length: 81 }, () => new Set()))
+    setMyFinished(true)
+    setMyFinishTime(elapsed)
+    setShowCheat(false)
+    await persistCells(newCells, { finished_at: new Date().toISOString() })
+  }
+
   // ── Derived display state ──────────────────────────────────────
   const conflicts  = getConflicts(cells)
   const peers      = selected !== null ? getPeers(selected) : new Set()
@@ -249,6 +263,8 @@ export default function MultiplayerGameScreen({
       } else if (key === 'ArrowRight') {
         e.preventDefault()
         setSelected(s => s === null ? 0 : Math.min(80, s + 1))
+      } else if (key === 's' || key === 'S') {
+        setShowCheat(v => !v)
       }
     }
     document.addEventListener('keydown', onKey)
@@ -269,6 +285,9 @@ export default function MultiplayerGameScreen({
         <div className="game-screen__meta" style={{ flex: 1 }}>
           <span className="game-screen__difficulty">{initialGame.difficulty}</span>
           {eliminated && <span className="mp-eliminated-badge">Eliminated</span>}
+          {showCheat && !myFinished && (
+            <button className="cheat-btn" onClick={cheatFill}>⚡ Fill</button>
+          )}
         </div>
         <div className="game-screen__timer">{formatTime(elapsed)}</div>
       </div>

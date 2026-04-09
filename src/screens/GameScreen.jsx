@@ -54,6 +54,7 @@ function ActiveGame({ puzzle, difficulty, settings, updateSetting, onBack, onNew
   const game = useGameState(puzzle, settings)
   const timer = useTimer()
   const [showSettings, setShowSettings] = useState(false)
+  const [showCheat, setShowCheat] = useState(false)
   const boardRef = useRef(null)
 
   // Start timer when game mounts
@@ -91,6 +92,8 @@ function ActiveGame({ puzzle, difficulty, settings, updateSetting, onBack, onNew
       } else if ((e.ctrlKey || e.metaKey) && key === 'z') {
         e.preventDefault()
         game.undo()
+      } else if (key === 's' || key === 'S') {
+        setShowCheat(v => !v)
       }
     }
     document.addEventListener('keydown', onKey)
@@ -111,6 +114,11 @@ function ActiveGame({ puzzle, difficulty, settings, updateSetting, onBack, onNew
         </button>
         <div className="game-screen__meta">
           <span className="game-screen__difficulty">{difficulty}</span>
+          {showCheat && (
+            <button className="cheat-btn" onClick={() => { game.fillAll(); setShowCheat(false) }}>
+              ⚡ Fill
+            </button>
+          )}
         </div>
         <div className="game-screen__timer">{displayTime}</div>
         <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
