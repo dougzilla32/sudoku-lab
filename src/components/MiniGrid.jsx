@@ -1,15 +1,18 @@
 // Opponent mini-grid shown during multiplayer games.
 // cells: array of 81 numbers (0=empty, positive=correct/given, negative=wrong)
 // puzzleGrid: 81-char string of the puzzle — non-zero chars are givens (shown grey)
-export default function MiniGrid({ name, cells = [], finished, disconnected, puzzleGrid = '' }) {
+export default function MiniGrid({ name, cells = [], finished, disconnected, overtaking, puzzleGrid = '' }) {
   const filled = cells.length === 81 ? cells : Array(81).fill(0)
 
-  const nonEmpty = filled.filter(v => v !== 0).length
-  const pct = Math.round((nonEmpty / 81) * 100)
+  const givenCount = puzzleGrid.length === 81 ? puzzleGrid.split('').filter(c => c !== '0').length : 0
+  const playerFilled = filled.filter((v, i) => v !== 0 && (puzzleGrid.length !== 81 || puzzleGrid[i] === '0')).length
+  const cellsToFill = 81 - givenCount
+  const pct = cellsToFill > 0 ? Math.round((playerFilled / cellsToFill) * 100) : 0
 
   let wrapClass = 'mini-grid-wrap'
   if (finished)     wrapClass += ' mini-grid-wrap--done'
   if (disconnected) wrapClass += ' mini-grid-wrap--offline'
+  if (overtaking)   wrapClass += ' mini-grid-wrap--overtaking'
 
   return (
     <div className={wrapClass}>
@@ -36,6 +39,8 @@ export default function MiniGrid({ name, cells = [], finished, disconnected, puz
           ? <span className="mini-grid__offline">offline</span>
           : finished
           ? <span className="mini-grid__done">Done!</span>
+          : overtaking
+          ? <span className="mini-grid__overtake">{pct}% ↑</span>
           : <span className="mini-grid__pct">{pct}%</span>
         }
       </div>

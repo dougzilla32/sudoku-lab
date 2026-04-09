@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { parsePuzzle, getConflicts, isComplete, getPeers, getSameDigitCells, getGroup } from '../lib/sudoku'
+import { useState, useCallback, useRef } from 'react'
+import { parsePuzzle, getConflicts, isComplete, getPeers, getSameDigitCells, getGroup, getNewlyCompletedCells } from '../lib/sudoku'
 
 const MAX_HISTORY = 20
 
@@ -21,6 +21,10 @@ export function useGameState(puzzle, settings) {
   const [hintPenalty, setHintPenalty] = useState(0)
   const [mistakes, setMistakes]   = useState(0)
   const [complete, setComplete]   = useState(false)
+  const [hintedCells, setHintedCells]           = useState(() => new Set())
+  const [flashCells, setFlashCells]             = useState(() => new Set())
+  const [completedGroupCount, setCompletedCount] = useState(0)
+  const flashTimer = useRef(null)
 
   function pushHistory(c, n) {
     setHistory(h => [...h.slice(-(MAX_HISTORY - 1)), { cells: cloneCells(c), notes: cloneNotes(n) }])
@@ -56,6 +60,15 @@ export function useGameState(puzzle, settings) {
       for (const i of getGroup(selected)) {
         if (i !== selected) nextNotes[i].delete(digit)
       }
+    }
+
+    // Detect newly completed groups and schedule flash
+    const completed = getNewlyCompletedCells(cells, nextCells, selected)
+    if (completed.length > 0) {
+      clearTimeout(flashTimer.current)
+      setFlashCells(new Set(completed))
+      setCompletedCount(n => n + 1)
+      flashTimer.current = setTimeout(() => setFlashCells(new Set()), 700)
     }
 
     if (isComplete(nextCells)) setComplete(true)
@@ -115,6 +128,16 @@ export function useGameState(puzzle, settings) {
       }
     }
 
+    setHintedCells(prev => { const n = new Set(prev); n.add(selected); return n })
+
+    const completed = getNewlyCompletedCells(cells, nextCells, selected)
+    if (completed.length > 0) {
+      clearTimeout(flashTimer.current)
+      setFlashCells(new Set(completed))
+      setCompletedCount(n => n + 1)
+      flashTimer.current = setTimeout(() => setFlashCells(new Set()), 700)
+    }
+
     setHintsLeft(h => h - 1)
     setHintPenalty(p => p + 30)
     if (isComplete(nextCells)) setComplete(true)
@@ -131,6 +154,7 @@ export function useGameState(puzzle, settings) {
     cells, notes, selected, setSelected,
     notesMode, setNotesMode,
     hintsLeft, hintPenalty, mistakes, complete,
+    hintedCells, flashCells, completedGroupCount,
     conflicts, peers, sameDigits,
     enterDigit, erase, undo, useHint, fillAll,
   }

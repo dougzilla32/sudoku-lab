@@ -2,7 +2,7 @@ import { getRow, getCol, getBox } from '../lib/sudoku'
 
 // Renders the 9×9 board as a 3×3 grid of 3×3 boxes.
 // Cell index 0–80, reading left-to-right, top-to-bottom.
-export default function Board({ cells, notes, selected, setSelected, conflicts, peers, sameDigits, settings }) {
+export default function Board({ cells, notes, selected, setSelected, conflicts, peers, sameDigits, settings, flashCells }) {
   const selectedDigit = selected !== null ? cells[selected].digit : 0
 
   return (
@@ -23,6 +23,7 @@ export default function Board({ cells, notes, selected, setSelected, conflicts, 
             const isPeer       = settings.highlightSelection && !isSelected && peers.has(idx)
             const isSameDigit  = settings.highlightSelection && !isSelected && sameDigits.has(idx)
 
+            const isFlash = flashCells?.has(idx)
             const cls = [
               'cell',
               cell.isGiven ? 'cell--given' : 'cell--player',
@@ -30,6 +31,7 @@ export default function Board({ cells, notes, selected, setSelected, conflicts, 
               isPeer       ? 'cell--peer'        : '',
               isSameDigit  ? 'cell--same-digit'  : '',
               isConflict   ? 'cell--conflict'    : '',
+              isFlash      ? 'cell--flash'       : '',
             ].filter(Boolean).join(' ')
 
             return (

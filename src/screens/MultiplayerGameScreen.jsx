@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import ConfirmModal from '../components/ConfirmModal'
 import ChatBar from '../components/ChatBar'
-import { formatTime, getConflicts, getPeers, getSameDigitCells, parsePuzzle } from '../lib/sudoku'
+import { formatTime, getConflicts, getPeers, getSameDigitCells, parsePuzzle, getNewlyCompletedCells } from '../lib/sudoku'
+import { useSounds } from '../hooks/useSounds'
 import Board from '../components/Board'
 import NumberPad from '../components/NumberPad'
 import MiniGrid from '../components/MiniGrid'
 
 const MAX_HINTS    = 3
 const HINT_PENALTY = 30
+const EMOJIS       = ['🔥', '👏', '😱', '😂', '💀', '👀', '🏆']
 
 // ── Spectator helpers ──────────────────────────────────────────
 function deriveCells(puzzleGrid, storedCells) {
@@ -93,9 +95,21 @@ export default function MultiplayerGameScreen({
   const [showCheat, setShowCheat]       = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
+  const [flashCells, setFlashCells]           = useState(() => new Set())
+  const [overtakingPlayers, setOvertakingPlayers] = useState(() => new Set())
+
+  // ── Sounds ────────────────────────────────────────────────────
+  const play        = useSounds(settings?.soundEffects ?? true)
+  const playRef     = useRef(play)
+  const flashTimer  = useRef(null)
+  const overtakeTimer = useRef(null)
+  const finishSoundPlayed = useRef(false)
+  useEffect(() => { playRef.current = play }, [play])
 
   // ── Other players ─────────────────────────────────────────────
   const [allPlayers, setAllPlayers] = useState([])
+  const allPlayersRef = useRef(allPlayers)
+  useEffect(() => { allPlayersRef.current = allPlayers }, [allPlayers])
 
   // ── Shared timer ──────────────────────────────────────────────
   const [elapsed, setElapsed] = useState(() =>
@@ -134,17 +148,20 @@ export default function MultiplayerGameScreen({
     }
   }, [myPlayerId])
 
-  // ── Delete player row on page unload (refresh / tab close) ────
+  // ── Mark disconnected on page unload (refresh / tab close) ────
+  // We PATCH rather than DELETE so progress (cells, notes) is preserved for rejoin.
   useEffect(() => {
     function onUnload() {
       fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/game_players?id=eq.${myPlayerId}`,
         {
-          method: 'DELETE',
+          method: 'PATCH',
           headers: {
             apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
           },
+          body: JSON.stringify({ connected: false }),
           keepalive: true,
         }
       )
@@ -167,6 +184,15 @@ export default function MultiplayerGameScreen({
       .then(({ data }) => { if (data) setAllPlayers(data) })
   }, [initialGame.id])
 
+  // ── Finish sound (once) ───────────────────────────────────────
+  useEffect(() => {
+    if (myFinished && !finishSoundPlayed.current) {
+      finishSoundPlayed.current = true
+      const otherFinished = allPlayersRef.current.filter(p => p.role === 'player' && p.id !== myPlayerId && p.finished_at)
+      playRef.current(otherFinished.length === 0 ? 'win' : 'complete')
+    }
+  }, [myFinished, myPlayerId])
+
   // ── Realtime: player updates ──────────────────────────────────
   useEffect(() => {
     const ch = supabase
@@ -175,6 +201,11 @@ export default function MultiplayerGameScreen({
         event: 'UPDATE', schema: 'public', table: 'game_players',
         filter: `game_id=eq.${initialGame.id}`
       }, ({ new: row }) => {
+        // Fanfare when an opponent finishes for the first time
+        const prev = allPlayersRef.current.find(p => p.id === row.id)
+        if (row.role === 'player' && row.id !== myPlayerId && row.finished_at && !prev?.finished_at) {
+          playRef.current('fanfare')
+        }
         setAllPlayers(p => p.map(pl => pl.id === row.id ? row : pl))
         checkAllDone(row)
       })
@@ -196,6 +227,7 @@ export default function MultiplayerGameScreen({
   function addMessage({ playerName: name, text, emoji }) {
     const id = Date.now() + Math.random()
     setChatMessages(m => [...m.slice(-199), { id, name, text, emoji }])
+    playRef.current('bloop', EMOJIS.indexOf(emoji ?? ''))
   }
 
   function handleSend({ text, emoji }) {
@@ -256,6 +288,31 @@ export default function MultiplayerGameScreen({
       return s
     })
 
+    // Sound
+    play(correct ? 'tick' : 'thud')
+
+    // Flash on group completion
+    const completed = getNewlyCompletedCells(cells, newCells, selected)
+    if (completed.length > 0) {
+      clearTimeout(flashTimer.current)
+      setFlashCells(new Set(completed))
+      flashTimer.current = setTimeout(() => setFlashCells(new Set()), 700)
+      play('chime')
+    }
+
+    // Overtake detection
+    const myOldFilled = cells.filter(c => c.digit !== 0).length
+    const myNewFilled = newCells.filter(c => c.digit !== 0).length
+    const justOvertaken = allPlayers.filter(p => p.role === 'player' && p.id !== myPlayerId && !p.finished_at).filter(op => {
+      const opFilled = (op.cells || []).filter(v => v !== 0).length
+      return myOldFilled <= opFilled && myNewFilled > opFilled
+    })
+    if (justOvertaken.length > 0) {
+      clearTimeout(overtakeTimer.current)
+      setOvertakingPlayers(new Set(justOvertaken.map(p => p.id)))
+      overtakeTimer.current = setTimeout(() => setOvertakingPlayers(new Set()), 1500)
+    }
+
     setCells(newCells)
     setNotes(newNotes)
 
@@ -284,6 +341,7 @@ export default function MultiplayerGameScreen({
     if (selected === null || myFinished || eliminated) return
     const cell = cells[selected]
     if (cell.isGiven) return
+    play('swoosh')
     if (cell.digit !== 0) {
       // First erase: remove digit, reveal notes underneath
       const newCells = cells.map((c, i) => i === selected ? { ...c, digit: 0, correct: false } : c)
@@ -301,6 +359,7 @@ export default function MultiplayerGameScreen({
     if (selected === null || hintsLeft === 0 || myFinished || eliminated) return
     const cell = cells[selected]
     if (cell.isGiven || cell.correct) return
+    play('sparkle')
 
     const correctDigit = parseInt(solution[selected], 10)
     const newCells     = cells.map((c, i) => i === selected ? { ...c, digit: correctDigit, correct: true } : c)
@@ -476,7 +535,8 @@ export default function MultiplayerGameScreen({
         {/* Left: board + number pad */}
         <div className="mp-game-left">
           <Board cells={cells} notes={notes} selected={selected} setSelected={setSelected}
-            conflicts={conflicts} peers={peers} sameDigits={sameDigits} settings={settings} />
+            conflicts={conflicts} peers={peers} sameDigits={sameDigits} settings={settings}
+            flashCells={flashCells} />
           <NumberPad notesMode={notesMode} setNotesMode={setNotesMode} hintsLeft={hintsLeft}
             onDigit={enterDigit} onErase={erase} onUndo={() => {}} onHint={useHint} />
         </div>
@@ -487,7 +547,9 @@ export default function MultiplayerGameScreen({
             <div className="mp-opponents mp-opponents--sidebar">
               {opponents.map(op => (
                 <MiniGrid key={op.id} name={op.name} cells={op.cells}
-                  finished={!!op.finished_at} disconnected={!op.connected} puzzleGrid={puzzle.grid} />
+                  finished={!!op.finished_at} disconnected={!op.connected}
+                  overtaking={overtakingPlayers.has(op.id)}
+                  puzzleGrid={puzzle.grid} />
               ))}
             </div>
           )}

@@ -1,6 +1,15 @@
+import { useState } from 'react'
 import { formatTime } from '../lib/sudoku'
 
-export default function CompletionModal({ seconds, hintPenalty, mistakes, hintsUsed, onPlayAgain, onHome }) {
+export default function CompletionModal({ seconds, hintPenalty, mistakes, hintsUsed, onPlayAgain, onHome, onShare }) {
+  const [shareLabel, setShareLabel] = useState('Share Result')
+
+  async function handleShare() {
+    const result = await onShare?.()
+    if (result === 'copied') setShareLabel('Copied!')
+    else if (result === 'shared') setShareLabel('Shared!')
+    setTimeout(() => setShareLabel('Share Result'), 2500)
+  }
   const total = seconds + hintPenalty
   const baseTime = formatTime(seconds)
   const totalTime = formatTime(total)
@@ -34,6 +43,9 @@ export default function CompletionModal({ seconds, hintPenalty, mistakes, hintsU
 
         <div className="completion-modal__actions">
           <button className="btn btn--primary" onClick={onPlayAgain}>Play Again</button>
+          {onShare && (
+            <button className="btn btn--ghost" onClick={handleShare}>{shareLabel}</button>
+          )}
           <button className="btn btn--ghost" onClick={onHome}>Home</button>
         </div>
       </div>

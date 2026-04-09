@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 import { formatTime, getConflicts } from '../lib/sudoku'
+import { useSounds } from '../hooks/useSounds'
 import Board from '../components/Board'
 import MiniGrid from '../components/MiniGrid'
 import ChatBar from '../components/ChatBar'
 import ConfirmModal from '../components/ConfirmModal'
 
+const EMOJIS = ['🔥', '👏', '😱', '😂', '💀', '👀', '🏆']
 
 // Build Board-compatible cells from puzzle grid + stored 81-int array
 function deriveCells(puzzleGrid, storedCells) {
@@ -29,6 +31,7 @@ export default function SpectatorGameScreen({
   puzzle,
   myPlayerId,
   playerName,
+  settings,
   onFinish,
   onLeave,
 }) {
@@ -37,6 +40,11 @@ export default function SpectatorGameScreen({
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [chatMessages, setChatMessages] = useState([])
   const reactionsRef = useRef(null)
+  const play = useSounds(settings?.soundEffects ?? true)
+  const playRef = useRef(play)
+  useEffect(() => { playRef.current = play }, [play])
+  const allPlayersRef = useRef([])
+  useEffect(() => { allPlayersRef.current = players }, [players])
 
   const [elapsed, setElapsed] = useState(() =>
     Math.floor((Date.now() - new Date(initialGame.started_at)) / 1000)
@@ -115,6 +123,10 @@ export default function SpectatorGameScreen({
         event: 'UPDATE', schema: 'public', table: 'game_players',
         filter: `game_id=eq.${initialGame.id}`
       }, ({ new: row }) => {
+        const prevPlayer = allPlayersRef.current.find(p => p.id === row.id)
+        if (row.role === 'player' && row.finished_at && !prevPlayer?.finished_at) {
+          playRef.current('fanfare')
+        }
         setPlayers(prev => {
           const merged = prev.map(p => p.id === row.id ? row : p)
           const realPlayers = merged.filter(p => p.role === 'player')
@@ -145,6 +157,7 @@ export default function SpectatorGameScreen({
   function addMessage({ playerName: name, text, emoji }) {
     const id = Date.now() + Math.random()
     setChatMessages(m => [...m.slice(-199), { id, name, text, emoji }])
+    playRef.current('bloop', EMOJIS.indexOf(emoji ?? ''))
   }
 
   function handleSend({ text, emoji }) {

@@ -73,6 +73,40 @@ export function getSameDigitCells(cells, idx) {
   return result
 }
 
+// All 9 indices in the same row / col / 3×3 box as idx
+export function getRowIndices(idx) {
+  const row = Math.floor(idx / 9)
+  return Array.from({ length: 9 }, (_, c) => row * 9 + c)
+}
+
+export function getColIndices(idx) {
+  const col = idx % 9
+  return Array.from({ length: 9 }, (_, r) => r * 9 + col)
+}
+
+export function getBoxIndices(idx) {
+  const boxRow = Math.floor(Math.floor(idx / 9) / 3) * 3
+  const boxCol = Math.floor((idx % 9) / 3) * 3
+  const result = []
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 3; c++)
+      result.push((boxRow + r) * 9 + (boxCol + c))
+  return result
+}
+
+function isGroupComplete(cells, indices) {
+  const digits = indices.map(i => cells[i].digit)
+  return digits.every(d => d !== 0) && new Set(digits).size === 9
+}
+
+// Returns flat deduped array of cell indices in groups that were just completed.
+// A group (row/col/box touching idx) that was incomplete before and complete after.
+export function getNewlyCompletedCells(oldCells, newCells, idx) {
+  const groups = [getRowIndices(idx), getColIndices(idx), getBoxIndices(idx)]
+  const completed = groups.filter(g => !isGroupComplete(oldCells, g) && isGroupComplete(newCells, g))
+  return [...new Set(completed.flat())]
+}
+
 // Format seconds as MM:SS
 export function formatTime(totalSeconds) {
   const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0')

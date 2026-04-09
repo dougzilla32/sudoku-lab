@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { generateCode } from './lib/gameCode'
 import { generateGameName } from './lib/gameName'
 import { useSettings } from './hooks/useSettings'
+import { useSounds } from './hooks/useSounds'
 import HomeScreen from './screens/HomeScreen'
 import GameScreen from './screens/GameScreen'
 import LobbyScreen from './screens/LobbyScreen'
@@ -73,6 +74,7 @@ function ComingSoonModal({ label, onClose }) {
 // ── App ───────────────────────────────────────────────────────────
 export default function App() {
   const { settings, updateSetting } = useSettings()
+  const play = useSounds(settings.soundEffects)
 
   const [playerName, setPlayerName] = useState(() => {
     try { return localStorage.getItem(NAME_KEY) || '' } catch { return '' }
@@ -221,15 +223,19 @@ export default function App() {
       localStorage.removeItem(GAME_CTX_KEY); setRejoinCtx(null); return
     }
 
-    // Player row may have been deleted by the beforeunload handler on refresh — re-insert if needed
-    let { data: playerRow } = await supabase.from('game_players').select('*').eq('id', playerId).single()
+    let { data: playerRow } = await supabase
+      .from('game_players').select('*').eq('id', playerId).single()
     if (!playerRow) {
+      // Row missing (shouldn't happen, but handle gracefully) — insert a fresh one
       const { data: newRow } = await supabase
         .from('game_players')
         .insert({ game_id: gameId, name: playerName, role, joined_late: role === 'player' })
         .select().single()
       if (!newRow) { localStorage.removeItem(GAME_CTX_KEY); setRejoinCtx(null); return }
       playerRow = newRow
+    } else {
+      // Restore connected flag so peers see us as back online
+      await supabase.from('game_players').update({ connected: true }).eq('id', playerId)
     }
 
     const { data: puzzle } = await supabase
@@ -237,6 +243,7 @@ export default function App() {
 
     setRejoinCtx(null)
     setGameCtx({ game, puzzle, myPlayerId: playerRow.id, myRole: role, initialPlayerRow: playerRow })
+    play('welcome')
     setScreen(role === 'spectator' ? 'spectating' : 'multiplayer')
   }
 
@@ -268,7 +275,7 @@ export default function App() {
           onPractice={() => setScreen('practice')}
           onCreateGame={handleCreateGame}
           onJoinGame={() => { setJoinError(null); setScreen('join') }}
-          onDailyPuzzle={() => setComingSoon('Daily Puzzle')}
+          onDailyPuzzle={() => setScreen('daily')}
           rejoinGame={rejoinCtx}
           onRejoin={handleRejoin}
         />
@@ -282,6 +289,10 @@ export default function App() {
 
       {!showNamePrompt && screen === 'practice' && (
         <GameScreen settings={settings} updateSetting={updateSetting} onHome={() => setScreen('home')} />
+      )}
+
+      {!showNamePrompt && screen === 'daily' && (
+        <GameScreen key="daily" daily settings={settings} updateSetting={updateSetting} onHome={() => setScreen('home')} />
       )}
 
       {!showNamePrompt && screen === 'lobby' && gameCtx && (
@@ -306,6 +317,7 @@ export default function App() {
           key={gameCtx.game.id + '-spectator'}
           game={gameCtx.game} puzzle={gameCtx.puzzle}
           myPlayerId={gameCtx.myPlayerId} playerName={playerName}
+          settings={settings}
           onFinish={handleGameFinish}
           onLeave={() => { setScreen('home'); setGameCtx(null) }}
         />
@@ -315,6 +327,7 @@ export default function App() {
         <ResultsScreen
           game={gameResult.game} players={gameResult.players}
           myPlayerId={gameCtx?.myPlayerId}
+          puzzle={gameCtx?.puzzle}
           onPlayAgain={handlePlayAgain}
           onHome={() => { setScreen('home'); setGameResult(null); setGameCtx(null) }}
         />
