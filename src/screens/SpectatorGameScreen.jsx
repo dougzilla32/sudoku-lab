@@ -3,10 +3,9 @@ import { supabase } from '../supabaseClient'
 import { formatTime, getConflicts } from '../lib/sudoku'
 import Board from '../components/Board'
 import MiniGrid from '../components/MiniGrid'
-import ReactionsBar from '../components/ReactionsBar'
+import ChatBar from '../components/ChatBar'
 import ConfirmModal from '../components/ConfirmModal'
 
-const EMOJI_TTL = 2500
 
 // Build Board-compatible cells from puzzle grid + stored 81-int array
 function deriveCells(puzzleGrid, storedCells) {
@@ -36,7 +35,7 @@ export default function SpectatorGameScreen({
   const [players, setPlayers]         = useState([])
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
-  const [floatingEmojis, setFloatingEmojis] = useState([])
+  const [chatMessages, setChatMessages] = useState([])
   const reactionsRef = useRef(null)
 
   const [elapsed, setElapsed] = useState(() =>
@@ -59,6 +58,33 @@ export default function SpectatorGameScreen({
       supabase.from('game_players').update({ connected: false }).eq('id', myPlayerId)
     }
   }, [])
+
+  // ── Delete player row on page unload (refresh / tab close) ────
+  useEffect(() => {
+    function onUnload() {
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/game_players?id=eq.${myPlayerId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          keepalive: true,
+        }
+      )
+    }
+    window.addEventListener('beforeunload', onUnload)
+    return () => window.removeEventListener('beforeunload', onUnload)
+  }, [myPlayerId])
+
+  // ── Heartbeat: update last_seen_at every 60 seconds ──────────
+  useEffect(() => {
+    const iv = setInterval(() => {
+      supabase.from('game_players').update({ last_seen_at: new Date().toISOString() }).eq('id', myPlayerId)
+    }, 60_000)
+    return () => clearInterval(iv)
+  }, [myPlayerId])
 
   // ── Connected tracking ────────────────────────────────────────
   useEffect(() => {
@@ -93,7 +119,10 @@ export default function SpectatorGameScreen({
           const merged = prev.map(p => p.id === row.id ? row : p)
           const realPlayers = merged.filter(p => p.role === 'player')
           if (realPlayers.length > 0 && realPlayers.every(p => p.finished_at)) {
-            supabase.from('games').select('*').eq('id', initialGame.id).single()
+            supabase.from('games')
+              .update({ status: 'finished' })
+              .eq('id', initialGame.id)
+              .select('*').single()
               .then(({ data: finalGame }) => { if (finalGame) onFinish(finalGame, merged) })
           }
           return merged
@@ -103,25 +132,24 @@ export default function SpectatorGameScreen({
     return () => supabase.removeChannel(ch)
   }, [initialGame.id, onFinish])
 
-  // ── Reactions channel ─────────────────────────────────────────
+  // ── Chat channel ──────────────────────────────────────────────
   useEffect(() => {
     const ch = supabase
       .channel(`reactions-${initialGame.id}`)
-      .on('broadcast', { event: 'reaction' }, ({ payload }) => addEmoji(payload))
+      .on('broadcast', { event: 'reaction' }, ({ payload }) => addMessage(payload))
       .subscribe()
     reactionsRef.current = ch
     return () => supabase.removeChannel(ch)
   }, [initialGame.id])
 
-  function addEmoji({ playerName: name, emoji }) {
+  function addMessage({ playerName: name, text, emoji }) {
     const id = Date.now() + Math.random()
-    setFloatingEmojis(e => [...e, { id, emoji, name }])
-    setTimeout(() => setFloatingEmojis(e => e.filter(x => x.id !== id)), EMOJI_TTL)
+    setChatMessages(m => [...m.slice(-199), { id, name, text, emoji }])
   }
 
-  function handleReact(emoji) {
-    const payload = { playerId: myPlayerId, playerName, emoji }
-    addEmoji(payload)
+  function handleSend({ text, emoji }) {
+    const payload = { playerId: myPlayerId, playerName, text, emoji }
+    addMessage(payload)
     reactionsRef.current?.send({ type: 'broadcast', event: 'reaction', payload })
   }
 
@@ -199,20 +227,8 @@ export default function SpectatorGameScreen({
         </div>
       )}
 
-      {/* Reactions */}
-      <ReactionsBar onReact={handleReact} />
-
-      {/* Floating emoji reactions */}
-      {floatingEmojis.length > 0 && (
-        <div className="floating-emojis">
-          {floatingEmojis.map(fe => (
-            <div key={fe.id} className="floating-emoji">
-              <span className="floating-emoji__emoji">{fe.emoji}</span>
-              <span className="floating-emoji__name">{fe.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Chat */}
+      <ChatBar onSend={handleSend} messages={chatMessages} />
 
       {confirmLeave && (
         <ConfirmModal

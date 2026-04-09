@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { generateCode } from './lib/gameCode'
 import { generateGameName } from './lib/gameName'
@@ -16,8 +16,17 @@ const NAME_KEY     = 'sudokulab_name'
 const GAME_CTX_KEY = 'sudokulab_game_ctx'
 
 // ── Name prompt ───────────────────────────────────────────────────
-function NamePrompt({ onSave, onCancel }) {
-  const [value, setValue] = useState('')
+function NamePrompt({ onSave, onCancel, initialValue = '' }) {
+  const [value, setValue] = useState(initialValue)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.focus()
+    el.select()
+  }, [])
+
   function submit(e) {
     e.preventDefault()
     const name = value.trim()
@@ -36,8 +45,8 @@ function NamePrompt({ onSave, onCancel }) {
         <h2>Welcome to Sudoku Lab!</h2>
         <p>What should we call you?</p>
         <form onSubmit={submit}>
-          <input className="name-prompt__input" type="text" placeholder="Your name"
-            value={value} onChange={e => setValue(e.target.value)} maxLength={20} autoFocus />
+          <input ref={inputRef} className="name-prompt__input" type="text" placeholder="Your name"
+            value={value} onChange={e => setValue(e.target.value)} maxLength={20} />
           <button className="btn btn--primary" type="submit" disabled={!value.trim()}>
             Let's go
           </button>
@@ -211,15 +220,23 @@ export default function App() {
     if (!game || game.status !== 'active') {
       localStorage.removeItem(GAME_CTX_KEY); setRejoinCtx(null); return
     }
-    const { data: playerRow } = await supabase.from('game_players').select('*').eq('id', playerId).single()
+
+    // Player row may have been deleted by the beforeunload handler on refresh — re-insert if needed
+    let { data: playerRow } = await supabase.from('game_players').select('*').eq('id', playerId).single()
     if (!playerRow) {
-      localStorage.removeItem(GAME_CTX_KEY); setRejoinCtx(null); return
+      const { data: newRow } = await supabase
+        .from('game_players')
+        .insert({ game_id: gameId, name: playerName, role, joined_late: role === 'player' })
+        .select().single()
+      if (!newRow) { localStorage.removeItem(GAME_CTX_KEY); setRejoinCtx(null); return }
+      playerRow = newRow
     }
+
     const { data: puzzle } = await supabase
       .from('puzzles').select('id, grid, solution').eq('id', game.puzzle_id).single()
 
     setRejoinCtx(null)
-    setGameCtx({ game, puzzle, myPlayerId: playerId, myRole: role, initialPlayerRow: playerRow })
+    setGameCtx({ game, puzzle, myPlayerId: playerRow.id, myRole: role, initialPlayerRow: playerRow })
     setScreen(role === 'spectator' ? 'spectating' : 'multiplayer')
   }
 
@@ -242,7 +259,7 @@ export default function App() {
 
   return (
     <div className="app">
-      {showNamePrompt && <NamePrompt onSave={saveName} onCancel={editingName ? () => setEditingName(false) : null} />}
+      {showNamePrompt && <NamePrompt onSave={saveName} onCancel={editingName ? () => setEditingName(false) : null} initialValue={editingName ? playerName : ''} />}
 
       {!showNamePrompt && screen === 'home' && (
         <HomeScreen
@@ -259,7 +276,8 @@ export default function App() {
 
       {!showNamePrompt && screen === 'join' && (
         <JoinScreen onJoin={handleJoin} onBack={() => setScreen('home')}
-          loading={joinLoading} error={joinError} />
+          loading={joinLoading} error={joinError}
+          rejoinGameId={rejoinCtx?.gameId} onRejoin={handleRejoin} />
       )}
 
       {!showNamePrompt && screen === 'practice' && (

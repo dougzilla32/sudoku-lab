@@ -53,7 +53,9 @@ export function useGameState(puzzle, settings) {
 
     const nextNotes = cloneNotes(notes)
     if (settings.autoClearNotes && digit !== 0) {
-      for (const i of getGroup(selected)) nextNotes[i].delete(digit)
+      for (const i of getGroup(selected)) {
+        if (i !== selected) nextNotes[i].delete(digit)
+      }
     }
 
     if (isComplete(nextCells)) setComplete(true)
@@ -67,9 +69,14 @@ export function useGameState(puzzle, settings) {
     if (cells[selected].isGiven) return
     pushHistory(cells, notes)
     const nextCells = cloneCells(cells)
-    nextCells[selected] = { ...nextCells[selected], digit: 0 }
     const nextNotes = cloneNotes(notes)
-    nextNotes[selected] = new Set()
+    if (cells[selected].digit !== 0) {
+      // First erase: remove the digit, reveal notes underneath
+      nextCells[selected] = { ...nextCells[selected], digit: 0 }
+    } else {
+      // Second erase: cell is empty, clear any notes
+      nextNotes[selected] = new Set()
+    }
     setCells(nextCells)
     setNotes(nextNotes)
   }, [selected, cells, notes])
@@ -103,7 +110,9 @@ export function useGameState(puzzle, settings) {
 
     const nextNotes = cloneNotes(notes)
     if (settings.autoClearNotes) {
-      for (const i of getGroup(selected)) nextNotes[i].delete(correct)
+      for (const i of getGroup(selected)) {
+        if (i !== selected) nextNotes[i].delete(correct)
+      }
     }
 
     setHintsLeft(h => h - 1)

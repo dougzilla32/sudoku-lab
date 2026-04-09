@@ -142,13 +142,10 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
   async function leaveGame() {
     await supabase.from('game_players').delete().eq('id', myPlayerId)
 
-    // If this was the last real player, mark game as empty for cleanup
+    // If no real players remain, delete the game entirely
     const remainingPlayers = players.filter(p => p.id !== myPlayerId && p.role === 'player')
     if (remainingPlayers.length === 0) {
-      await supabase
-        .from('games')
-        .update({ empty_since: new Date().toISOString() })
-        .eq('id', game.id)
+      await supabase.from('games').delete().eq('id', game.id)
     }
 
     onLeave()

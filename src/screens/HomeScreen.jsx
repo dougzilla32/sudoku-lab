@@ -37,13 +37,13 @@ export default function HomeScreen({ playerName, onChangeName, onPractice, onCre
           <span className="home-btn__sub">Solo puzzle, your pace</span>
         </button>
 
-        <button className="home-btn home-btn--secondary" onClick={onCreateGame}>
+        <button className="home-btn home-btn--primary" onClick={onCreateGame}>
           <span className="home-btn__icon">➕</span>
           <span className="home-btn__label">Create Game</span>
           <span className="home-btn__sub">Start a multiplayer game</span>
         </button>
 
-        <button className="home-btn home-btn--secondary" onClick={onJoinGame}>
+        <button className="home-btn home-btn--primary" onClick={onJoinGame}>
           <span className="home-btn__icon">🔗</span>
           <span className="home-btn__label">Join Game</span>
           <span className="home-btn__sub">Browse open games or enter a code</span>

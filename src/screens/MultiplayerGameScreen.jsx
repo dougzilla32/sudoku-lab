@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import ConfirmModal from '../components/ConfirmModal'
-import ReactionsBar from '../components/ReactionsBar'
+import ChatBar from '../components/ChatBar'
 import { formatTime, getConflicts, getPeers, getSameDigitCells, parsePuzzle } from '../lib/sudoku'
 import Board from '../components/Board'
 import NumberPad from '../components/NumberPad'
@@ -9,7 +9,6 @@ import MiniGrid from '../components/MiniGrid'
 
 const MAX_HINTS    = 3
 const HINT_PENALTY = 30
-const EMOJI_TTL    = 2500
 
 // ── Spectator helpers ──────────────────────────────────────────
 function deriveCells(puzzleGrid, storedCells) {
@@ -93,7 +92,7 @@ export default function MultiplayerGameScreen({
   const [watchingPlayer, setWatchingPlayer] = useState(null)
   const [showCheat, setShowCheat]       = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
-  const [floatingEmojis, setFloatingEmojis] = useState([])
+  const [chatMessages, setChatMessages] = useState([])
 
   // ── Other players ─────────────────────────────────────────────
   const [allPlayers, setAllPlayers] = useState([])
@@ -135,6 +134,33 @@ export default function MultiplayerGameScreen({
     }
   }, [myPlayerId])
 
+  // ── Delete player row on page unload (refresh / tab close) ────
+  useEffect(() => {
+    function onUnload() {
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/game_players?id=eq.${myPlayerId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          keepalive: true,
+        }
+      )
+    }
+    window.addEventListener('beforeunload', onUnload)
+    return () => window.removeEventListener('beforeunload', onUnload)
+  }, [myPlayerId])
+
+  // ── Heartbeat: update last_seen_at every 60 seconds ──────────
+  useEffect(() => {
+    const iv = setInterval(() => {
+      supabase.from('game_players').update({ last_seen_at: new Date().toISOString() }).eq('id', myPlayerId)
+    }, 60_000)
+    return () => clearInterval(iv)
+  }, [myPlayerId])
+
   // ── Fetch players on mount ────────────────────────────────────
   useEffect(() => {
     supabase.from('game_players').select('*').eq('game_id', initialGame.id)
@@ -156,27 +182,26 @@ export default function MultiplayerGameScreen({
     return () => supabase.removeChannel(ch)
   }, [initialGame.id])
 
-  // ── Reactions channel ─────────────────────────────────────────
-  const reactionsRef = useRef(null)
+  // ── Chat channel ──────────────────────────────────────────────
+  const chatRef = useRef(null)
   useEffect(() => {
     const ch = supabase
       .channel(`reactions-${initialGame.id}`)
-      .on('broadcast', { event: 'reaction' }, ({ payload }) => addEmoji(payload))
+      .on('broadcast', { event: 'reaction' }, ({ payload }) => addMessage(payload))
       .subscribe()
-    reactionsRef.current = ch
+    chatRef.current = ch
     return () => supabase.removeChannel(ch)
   }, [initialGame.id])
 
-  function addEmoji({ playerName: name, emoji }) {
+  function addMessage({ playerName: name, text, emoji }) {
     const id = Date.now() + Math.random()
-    setFloatingEmojis(e => [...e, { id, emoji, name }])
-    setTimeout(() => setFloatingEmojis(e => e.filter(x => x.id !== id)), EMOJI_TTL)
+    setChatMessages(m => [...m.slice(-199), { id, name, text, emoji }])
   }
 
-  function handleReact(emoji) {
-    const payload = { playerId: myPlayerId, playerName, emoji }
-    addEmoji(payload)
-    reactionsRef.current?.send({ type: 'broadcast', event: 'reaction', payload })
+  function handleSend({ text, emoji }) {
+    const payload = { playerId: myPlayerId, playerName, text, emoji }
+    addMessage(payload)
+    chatRef.current?.send({ type: 'broadcast', event: 'reaction', payload })
   }
 
   // ── Check if all players finished ────────────────────────────
@@ -185,7 +210,10 @@ export default function MultiplayerGameScreen({
       const merged = current.map(p => p.id === updatedRow.id ? updatedRow : p)
       const realPlayers = merged.filter(p => p.role === 'player')
       if (realPlayers.length > 0 && realPlayers.every(p => p.finished_at)) {
-        supabase.from('games').select('*').eq('id', initialGame.id).single()
+        supabase.from('games')
+          .update({ status: 'finished' })
+          .eq('id', initialGame.id)
+          .select('*').single()
           .then(({ data: finalGame }) => { if (finalGame) onFinish(finalGame, merged) })
       }
       return merged
@@ -223,8 +251,8 @@ export default function MultiplayerGameScreen({
     const newCells = cells.map((c, i) => i === selected ? { ...c, digit, correct } : c)
     const peers    = getPeers(selected)
     const newNotes = notes.map((s, i) => {
-      if (i === selected) return new Set()
-      if (correct && peers.has(i)) { const n = new Set(s); n.delete(digit); return n }
+      // Keep notes in the filled cell; only clear from peers when correct
+      if (correct && i !== selected && peers.has(i)) { const n = new Set(s); n.delete(digit); return n }
       return s
     })
 
@@ -252,20 +280,21 @@ export default function MultiplayerGameScreen({
     await persistState(newCells, newNotes, extra)
   }
 
-  function erase() {
+  async function erase() {
     if (selected === null || myFinished || eliminated) return
     const cell = cells[selected]
     if (cell.isGiven) return
-    if (notesMode) {
+    if (cell.digit !== 0) {
+      // First erase: remove digit, reveal notes underneath
+      const newCells = cells.map((c, i) => i === selected ? { ...c, digit: 0, correct: false } : c)
+      setCells(newCells)
+      await persistState(newCells, notes)
+    } else if (notes[selected].size > 0) {
+      // Second erase: clear notes
       const newNotes = notes.map((s, i) => i === selected ? new Set() : s)
       setNotes(newNotes)
-      persistState(cells, newNotes)
-      return
+      await persistState(cells, newNotes)
     }
-    if (cell.digit === 0) return
-    const newCells = cells.map((c, i) => i === selected ? { ...c, digit: 0, correct: false } : c)
-    setCells(newCells)
-    persistState(newCells, notes)
   }
 
   async function useHint() {
@@ -295,6 +324,13 @@ export default function MultiplayerGameScreen({
   async function leaveGame() {
     localStorage.removeItem('sudokulab_game_ctx')
     await supabase.from('game_players').delete().eq('id', myPlayerId)
+
+    // If no other unfinished players remain, delete the game (avoid zombie active games)
+    const otherActive = allPlayers.filter(p => p.id !== myPlayerId && p.role === 'player' && !p.finished_at)
+    if (otherActive.length === 0) {
+      await supabase.from('games').delete().eq('id', initialGame.id)
+    }
+
     onLeave()
   }
 
@@ -402,20 +438,8 @@ export default function MultiplayerGameScreen({
           </div>
         )}
 
-        {/* Reactions */}
-        <ReactionsBar onReact={handleReact} />
-
-        {/* Floating emoji reactions */}
-        {floatingEmojis.length > 0 && (
-          <div className="floating-emojis">
-            {floatingEmojis.map(fe => (
-              <div key={fe.id} className="floating-emoji">
-                <span className="floating-emoji__emoji">{fe.emoji}</span>
-                <span className="floating-emoji__name">{fe.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Chat */}
+        <ChatBar onSend={handleSend} messages={chatMessages} />
 
         {confirmLeave && (
           <ConfirmModal title="Leave game?"
@@ -464,20 +488,8 @@ export default function MultiplayerGameScreen({
       <NumberPad notesMode={notesMode} setNotesMode={setNotesMode} hintsLeft={hintsLeft}
         onDigit={enterDigit} onErase={erase} onUndo={() => {}} onHint={useHint} />
 
-      {/* Reactions */}
-      <ReactionsBar onReact={handleReact} />
-
-      {/* Floating emoji reactions */}
-      {floatingEmojis.length > 0 && (
-        <div className="floating-emojis">
-          {floatingEmojis.map(fe => (
-            <div key={fe.id} className="floating-emoji">
-              <span className="floating-emoji__emoji">{fe.emoji}</span>
-              <span className="floating-emoji__name">{fe.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Chat */}
+      <ChatBar onSend={handleSend} messages={chatMessages} />
 
       {confirmLeave && (
         <ConfirmModal title="Abandon the game?"
