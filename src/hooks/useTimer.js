@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-export function useTimer() {
-  const [seconds, setSeconds] = useState(0)
+export function useTimer(initialSeconds = 0) {
+  const [seconds, setSeconds] = useState(initialSeconds)
   const [running, setRunning] = useState(false)
   const ref = useRef(null)
 

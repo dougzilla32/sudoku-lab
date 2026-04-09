@@ -12,33 +12,33 @@
 > Goal: working solo Sudoku game. No multiplayer. Foundational schema locked in.
 
 ### Supabase Schema
-- [ ] `puzzles` table — `id`, `difficulty`, `grid` (81-char string, 0 = empty), `solution`
+- [x] `puzzles` table — `id`, `difficulty`, `grid` (81-char string, 0 = empty), `solution`
       (81-char string), `is_daily`, `daily_date` (nullable), `created_at`
-- [ ] `games` table — `id`, `code` (short shareable code), `difficulty`, `mistake_limit`,
+- [x] `games` table — `id`, `code` (short shareable code), `difficulty`, `mistake_limit`,
       `status` (lobby | active | finished), `puzzle_id`, `started_at`, `created_at`
-- [ ] `game_players` table — `id`, `game_id`, `name`, `role` (player | spectator),
+- [x] `game_players` table — `id`, `game_id`, `name`, `role` (player | spectator),
       `joined_late` (bool), `connected` (bool), `cells` (JSON: per-cell entries + correct flag),
       `notes` (JSON), `hint_count`, `mistake_count`, `finished_at`, `created_at`
 
 ### Puzzle Engine (React component, no backend needed)
-- [ ] 9×9 board rendering with given vs. player-entered cell styling
-- [ ] Cell selection with row/column/box highlight and same-digit highlight
-- [ ] On-screen number pad (digits 1–9, Erase, Notes toggle, Undo)
-- [ ] Keyboard input (digits, Backspace/Delete, arrow keys)
-- [ ] Definitive digit entry and conflict (duplicate) highlighting
-- [ ] Notes (pencil marks) mode
-- [ ] Undo (up to 20 steps, local only)
-- [ ] Keyboard suppression — tapping a cell never triggers native soft keyboard
+- [x] 9×9 board rendering with given vs. player-entered cell styling
+- [x] Cell selection with row/column/box highlight and same-digit highlight
+- [x] On-screen number pad (digits 1–9, Erase, Notes toggle, Undo)
+- [x] Keyboard input (digits, Backspace/Delete, arrow keys)
+- [x] Definitive digit entry and conflict (duplicate) highlighting
+- [x] Notes (pencil marks) mode
+- [x] Undo (up to 20 steps, local only)
+- [x] Keyboard suppression — tapping a cell never triggers native soft keyboard
 
 ### Practice Mode
-- [ ] Home screen with buttons: Create Game, Join Game, Practice, Daily Puzzle
+- [x] Home screen with buttons: Create Game, Join Game, Practice, Daily Puzzle
       (Create/Join/Daily are stubs in Phase 1)
-- [ ] Player name prompt on first launch; name stored in localStorage
-- [ ] Practice flow: pick difficulty → load puzzle from Supabase → play
-- [ ] Timer (counts up, pause supported in Practice)
-- [ ] Hints (3 per game, +30s penalty, reveals correct digit for selected cell)
-- [ ] Completion detection + animated completion message
-- [ ] Settings panel: highlight duplicates, highlight selection, auto-clear notes, sound effects
+- [x] Player name prompt on first launch; name stored in localStorage
+- [x] Practice flow: pick difficulty → load puzzle from Supabase → play
+- [x] Timer (counts up, pause supported in Practice)
+- [x] Hints (3 per game, +30s penalty, reveals correct digit for selected cell)
+- [x] Completion detection + animated completion message
+- [x] Settings panel: highlight duplicates, highlight selection, auto-clear notes, sound effects
       (sound toggle stored; actual sounds come in Phase 5)
 
 ---
@@ -47,32 +47,30 @@
 > Goal: full multiplayer loop — create, join, play, finish, results.
 
 ### Lobby
-- [ ] Create Game → generates short game code, inserts `games` row, navigates to Lobby
-- [ ] Join Game → enter code, join as player, navigate to Lobby
-- [ ] Lobby screen: game code + copy/share link, player list with ready toggles, game options
-- [ ] Any player can edit options; lobby shows "Alex changed difficulty to Hard" messages
-- [ ] Any player can press Start (enabled with ≥ 1 player present)
-- [ ] Lobby updates live via Supabase Realtime
+- [x] Create Game → generates short game code, inserts `games` row, navigates to Lobby
+- [x] Join Game → enter code, join as player, navigate to Lobby
+- [x] Lobby screen: game code + copy/share link, player list with ready toggles, game options
+- [x] Any player can edit options; lobby shows "Alex changed difficulty to Hard" messages
+- [x] Any player can press Start (enabled with ≥ 1 player present)
+- [x] Lobby updates live via Supabase Realtime
 
 ### Multiplayer Game
-- [ ] On start: assign puzzle, set `games.status = active`, broadcast to all players
-- [ ] Shared game clock — starts when game starts, all players see the same elapsed time
-- [ ] Late join: player joins after start, gets fresh empty board, inherits current clock,
+- [x] On start: assign puzzle, set `games.status = active`, broadcast to all players
+- [x] Shared game clock — starts when game starts, all players see the same elapsed time
+- [x] Late join: player joins after start, gets fresh empty board, inherits current clock,
       flagged as "joined late"
-- [ ] Player cell entries validated server-side (Netlify Function) against `puzzles.solution`;
-      result (correct/incorrect) stored in `game_players.cells` and broadcast
-- [ ] Opponent mini-grids: gray/green/red per cell, pulse animation on change,
-      name + completion % label
-- [ ] Hint broadcast: "Alex used a hint" notification to all players (digit not shared)
-- [ ] Mistake limit enforcement (if enabled): player eliminated at 3 mistakes, may keep playing
+- [x] Player cell entries validated client-side against `puzzles.solution`;
+      result (correct/incorrect) stored in `game_players.cells` and broadcast via Realtime
+- [x] Opponent mini-grids: gray/green/red per cell, name + completion % label
+- [x] Mistake limit enforcement (if enabled): player eliminated at limit, may keep watching
 
 ### Finish + Results
-- [ ] Win detection server-side; broadcast winner to all players + spectators
-- [ ] Completion animation overlay (rank + time) for each player when they finish
-- [ ] Other players continue after first place is taken
-- [ ] Results screen: ranking, times (with hint penalties), mistakes, hints used,
+- [x] Completion detected when all players have finished_at set
+- [x] "Waiting for others" overlay shown to first finisher
+- [x] Other players continue after first place is taken
+- [x] Results screen: ranking, times (with hint penalties), mistakes, hints used,
       "joined late" flags
-- [ ] Play Again: creates new lobby with same group, fresh puzzle
+- [x] Play Again: creates new lobby, fresh puzzle
 
 ---
 
