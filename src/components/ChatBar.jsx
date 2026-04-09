@@ -82,33 +82,31 @@ export default function ChatBar({ onSend, messages = [] }) {
         </div>
       )}
 
-      {/* Input row */}
-      <div className="chat-bar__input-row">
-        <button
-          className={`chat-bar__emoji-toggle${showEmojis ? ' active' : ''}`}
-          type="button"
-          aria-label="Emoji"
-          onClick={() => setShowEmojis(v => !v)}
-        >
-          🙂
+      {/* Input row — emoji toggle + input + send as direct grid children */}
+      <button
+        className={`chat-bar__emoji-toggle${showEmojis ? ' active' : ''}`}
+        type="button"
+        aria-label="Emoji"
+        onClick={() => setShowEmojis(v => !v)}
+      >
+        🙂
+      </button>
+      <form onSubmit={sendText} className="chat-bar__form">
+        <input
+          ref={inputRef}
+          className="chat-bar__input"
+          type="text"
+          placeholder="Say something…"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          maxLength={100}
+        />
+        <button className="chat-bar__send" type="submit" disabled={!text.trim()}>
+          Send
         </button>
-        <form onSubmit={sendText} className="chat-bar__form">
-          <input
-            ref={inputRef}
-            className="chat-bar__input"
-            type="text"
-            placeholder="Say something…"
-            value={text}
-            onChange={e => setText(e.target.value)}
-            maxLength={100}
-          />
-          <button className="chat-bar__send" type="submit" disabled={!text.trim()}>
-            Send
-          </button>
-        </form>
-      </div>
+      </form>
 
-      {/* Scrollable message history */}
+      {/* Scrollable message history — spans all columns */}
       <div className="chat-messages" ref={scrollRef} onScroll={handleScroll}>
         {messages.length === 0
           ? <p className="chat-messages__empty">No messages yet</p>

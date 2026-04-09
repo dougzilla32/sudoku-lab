@@ -398,48 +398,50 @@ export default function MultiplayerGameScreen({
           </div>
         </div>
 
-        {/* Player selector strip */}
-        {opponents.length > 0 && (
-          <div className="spectator-player-strip">
-            {opponents.map(p => (
-              <button
-                key={p.id}
-                className={`spectator-player-tab${p.id === watchingPlayer ? ' spectator-player-tab--active' : ''}`}
-                onClick={() => setWatchingPlayer(p.id)}
-              >
-                <span className="spectator-player-tab__name">{p.name}</span>
-                <span className={`spectator-player-tab__status${p.finished_at ? ' done' : ''}`}>
-                  {p.finished_at ? 'Done' : `${Math.round(((p.cells?.length === 81 ? p.cells.filter(v => v !== 0).length : 0) / 81) * 100)}%`}
-                </span>
-              </button>
-            ))}
+        <div className="mp-game-body">
+          {/* Left: player tabs + board */}
+          <div className="mp-game-left">
+            {opponents.length > 0 && (
+              <div className="spectator-player-strip">
+                {opponents.map(p => (
+                  <button
+                    key={p.id}
+                    className={`spectator-player-tab${p.id === watchingPlayer ? ' spectator-player-tab--active' : ''}`}
+                    onClick={() => setWatchingPlayer(p.id)}
+                  >
+                    <span className="spectator-player-tab__name">{p.name}</span>
+                    <span className={`spectator-player-tab__status${p.finished_at ? ' done' : ''}`}>
+                      {p.finished_at ? 'Done' : `${Math.round(((p.cells?.length === 81 ? p.cells.filter(v => v !== 0).length : 0) / 81) * 100)}%`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <Board
+              cells={watchingCells}
+              notes={emptyNotes}
+              selected={null}
+              setSelected={() => {}}
+              conflicts={watchingWrong}
+              peers={new Set()}
+              sameDigits={new Set()}
+              settings={{ highlightDuplicates: true, highlightSelection: false }}
+            />
           </div>
-        )}
 
-        {/* Full board of watched player */}
-        <Board
-          cells={watchingCells}
-          notes={emptyNotes}
-          selected={null}
-          setSelected={() => {}}
-          conflicts={watchingWrong}
-          peers={new Set()}
-          sameDigits={new Set()}
-          settings={{ highlightDuplicates: true, highlightSelection: false }}
-        />
-
-        {/* Mini-grids of other opponents */}
-        {opponents.length > 1 && (
-          <div className="mp-opponents">
-            {opponents.filter(p => p.id !== watchingPlayer).map(op => (
-              <MiniGrid key={op.id} name={op.name} cells={op.cells}
-                finished={!!op.finished_at} disconnected={!op.connected} puzzleGrid={puzzle.grid} />
-            ))}
+          {/* Right: mini-grids + chat */}
+          <div className="mp-game-right">
+            {opponents.length > 1 && (
+              <div className="mp-opponents">
+                {opponents.filter(p => p.id !== watchingPlayer).map(op => (
+                  <MiniGrid key={op.id} name={op.name} cells={op.cells}
+                    finished={!!op.finished_at} disconnected={!op.connected} puzzleGrid={puzzle.grid} />
+                ))}
+              </div>
+            )}
+            <ChatBar onSend={handleSend} messages={chatMessages} />
           </div>
-        )}
-
-        {/* Chat */}
-        <ChatBar onSend={handleSend} messages={chatMessages} />
+        </div>
 
         {confirmLeave && (
           <ConfirmModal title="Leave game?"
@@ -470,26 +472,28 @@ export default function MultiplayerGameScreen({
         <div className="game-screen__timer">{formatTime(elapsed)}</div>
       </div>
 
-      {/* Opponent mini-grids */}
-      {opponents.length > 0 && (
-        <div className="mp-opponents">
-          {opponents.map(op => (
-            <MiniGrid key={op.id} name={op.name} cells={op.cells}
-              finished={!!op.finished_at} disconnected={!op.connected} puzzleGrid={puzzle.grid} />
-          ))}
+      <div className="mp-game-body">
+        {/* Left: board + number pad */}
+        <div className="mp-game-left">
+          <Board cells={cells} notes={notes} selected={selected} setSelected={setSelected}
+            conflicts={conflicts} peers={peers} sameDigits={sameDigits} settings={settings} />
+          <NumberPad notesMode={notesMode} setNotesMode={setNotesMode} hintsLeft={hintsLeft}
+            onDigit={enterDigit} onErase={erase} onUndo={() => {}} onHint={useHint} />
         </div>
-      )}
 
-      {/* Board */}
-      <Board cells={cells} notes={notes} selected={selected} setSelected={setSelected}
-        conflicts={conflicts} peers={peers} sameDigits={sameDigits} settings={settings} />
-
-      {/* Number pad */}
-      <NumberPad notesMode={notesMode} setNotesMode={setNotesMode} hintsLeft={hintsLeft}
-        onDigit={enterDigit} onErase={erase} onUndo={() => {}} onHint={useHint} />
-
-      {/* Chat */}
-      <ChatBar onSend={handleSend} messages={chatMessages} />
+        {/* Right: opponents + chat */}
+        <div className="mp-game-right">
+          {opponents.length > 0 && (
+            <div className="mp-opponents mp-opponents--sidebar">
+              {opponents.map(op => (
+                <MiniGrid key={op.id} name={op.name} cells={op.cells}
+                  finished={!!op.finished_at} disconnected={!op.connected} puzzleGrid={puzzle.grid} />
+              ))}
+            </div>
+          )}
+          <ChatBar onSend={handleSend} messages={chatMessages} />
+        </div>
+      </div>
 
       {confirmLeave && (
         <ConfirmModal title="Abandon the game?"
