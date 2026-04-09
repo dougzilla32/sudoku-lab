@@ -7,6 +7,7 @@ import Board from '../components/Board'
 import NumberPad from '../components/NumberPad'
 import SettingsPanel from '../components/SettingsPanel'
 import CompletionModal from '../components/CompletionModal'
+import ConfirmModal from '../components/ConfirmModal'
 
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'expert']
 
@@ -53,8 +54,9 @@ function diffDesc(d) {
 function ActiveGame({ puzzle, difficulty, settings, updateSetting, onBack, onNewGame }) {
   const game = useGameState(puzzle, settings)
   const timer = useTimer()
-  const [showSettings, setShowSettings] = useState(false)
-  const [showCheat, setShowCheat] = useState(false)
+  const [showSettings, setShowSettings]   = useState(false)
+  const [showCheat, setShowCheat]         = useState(false)
+  const [confirmLeave, setConfirmLeave]   = useState(false)
   const boardRef = useRef(null)
 
   // Start timer when game mounts
@@ -107,7 +109,7 @@ function ActiveGame({ puzzle, difficulty, settings, updateSetting, onBack, onNew
     <div className="game-screen" ref={boardRef}>
       {/* Header */}
       <div className="game-screen__header">
-        <button className="back-btn" onClick={onBack}>
+        <button className="back-btn" onClick={() => game.complete ? onBack() : setConfirmLeave(true)}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
@@ -158,6 +160,15 @@ function ActiveGame({ puzzle, difficulty, settings, updateSetting, onBack, onNew
           settings={settings}
           updateSetting={updateSetting}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {confirmLeave && (
+        <ConfirmModal
+          title="Abandon this puzzle?"
+          message="Your progress will be lost. You can start a fresh puzzle anytime."
+          confirmLabel="Leave" cancelLabel="Keep playing"
+          onConfirm={onBack} onCancel={() => setConfirmLeave(false)}
         />
       )}
 

@@ -155,7 +155,9 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
   }
 
   const myPlayer    = players.find(p => p.id === myPlayerId)
-  const playerCount = players.filter(p => p.role === 'player').length
+  const realPlayers = players.filter(p => p.role === 'player')
+  const spectators  = players.filter(p => p.role === 'spectator')
+  const playerCount = realPlayers.length
   const canStart    = playerCount >= 1
 
   function copyCode() {
@@ -204,7 +206,7 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
           Players <span className="lobby-section__count">{playerCount}</span>
         </h3>
         <div className="lobby-players">
-          {players.map(p => (
+          {realPlayers.map(p => (
             <div key={p.id} className="lobby-player">
               <span className="lobby-player__name">
                 {p.name}
@@ -226,6 +228,20 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
           ))}
         </div>
       </div>
+
+      {/* Spectators */}
+      {spectators.length > 0 && (
+        <div className="lobby-section">
+          <h3 className="lobby-section__title">
+            Watching <span className="lobby-section__count">{spectators.length}</span>
+          </h3>
+          <div className="lobby-spectators">
+            {spectators.map(s => (
+              <span key={s.id} className="lobby-spectator-name">{s.name}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Game options */}
       <div className="lobby-section">

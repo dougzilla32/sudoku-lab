@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { generateCode } from './lib/gameCode'
 import { generateGameName } from './lib/gameName'
@@ -7,36 +7,30 @@ import HomeScreen from './screens/HomeScreen'
 import GameScreen from './screens/GameScreen'
 import LobbyScreen from './screens/LobbyScreen'
 import MultiplayerGameScreen from './screens/MultiplayerGameScreen'
+import SpectatorGameScreen from './screens/SpectatorGameScreen'
 import ResultsScreen from './screens/ResultsScreen'
 import JoinScreen from './screens/JoinScreen'
+import RoleChoiceModal from './components/RoleChoiceModal'
 
-const NAME_KEY = 'sudokulab_name'
+const NAME_KEY     = 'sudokulab_name'
+const GAME_CTX_KEY = 'sudokulab_game_ctx'
 
 // ── Name prompt ───────────────────────────────────────────────────
 function NamePrompt({ onSave }) {
   const [value, setValue] = useState('')
-
   function submit(e) {
     e.preventDefault()
     const name = value.trim()
     if (name) onSave(name)
   }
-
   return (
     <div className="modal-overlay">
       <div className="modal name-prompt">
         <h2>Welcome to Sudoku Lab!</h2>
         <p>What should we call you?</p>
         <form onSubmit={submit}>
-          <input
-            className="name-prompt__input"
-            type="text"
-            placeholder="Your name"
-            value={value}
-            onChange={e => setValue(e.target.value)}
-            maxLength={20}
-            autoFocus
-          />
+          <input className="name-prompt__input" type="text" placeholder="Your name"
+            value={value} onChange={e => setValue(e.target.value)} maxLength={20} autoFocus />
           <button className="btn btn--primary" type="submit" disabled={!value.trim()}>
             Let's go
           </button>
@@ -46,7 +40,6 @@ function NamePrompt({ onSave }) {
   )
 }
 
-// ── Coming-soon stub modal ────────────────────────────────────────
 function ComingSoonModal({ label, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -65,22 +58,46 @@ function ComingSoonModal({ label, onClose }) {
 export default function App() {
   const { settings, updateSetting } = useSettings()
 
-  const [playerName, setPlayerName]   = useState(() => {
+  const [playerName, setPlayerName] = useState(() => {
     try { return localStorage.getItem(NAME_KEY) || '' } catch { return '' }
   })
   const [editingName, setEditingName] = useState(false)
 
-  // Screen: 'home' | 'practice' | 'join' | 'lobby' | 'multiplayer' | 'results'
+  // Screen: 'home' | 'practice' | 'join' | 'lobby' | 'multiplayer' | 'spectating' | 'results'
   const [screen, setScreen] = useState('home')
 
-  // Multiplayer context
-  const [gameCtx, setGameCtx]     = useState(null)  // { game, puzzle, myPlayerId }
-  const [gameResult, setGameResult] = useState(null) // { game, players }
+  // Multiplayer context — includes myRole and optionally initialPlayerRow (rejoin)
+  const [gameCtx, setGameCtx]       = useState(null)
+  const [gameResult, setGameResult] = useState(null)
 
-  // UI state
-  const [joinLoading, setJoinLoading] = useState(false)
-  const [joinError, setJoinError]     = useState(null)
-  const [comingSoon, setComingSoon]   = useState(null)
+  // Join flow: lookup first, then role choice
+  const [pendingJoin, setPendingJoin]     = useState(null)  // { game, playerCount }
+  const [joinLoading, setJoinLoading]     = useState(false)
+  const [joinError, setJoinError]         = useState(null)
+
+  // Rejoin detection
+  const [rejoinCtx, setRejoinCtx] = useState(null)
+
+  const [comingSoon, setComingSoon] = useState(null)
+
+  // ── Check for active game on startup ──────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem(GAME_CTX_KEY)
+    if (!saved) return
+    try {
+      const ctx = JSON.parse(saved)
+      supabase.from('games').select('id, status, name, code').eq('id', ctx.gameId).single()
+        .then(({ data }) => {
+          if (data?.status === 'active') {
+            setRejoinCtx({ ...ctx, gameName: data.name, gameCode: data.code })
+          } else {
+            localStorage.removeItem(GAME_CTX_KEY)
+          }
+        })
+    } catch {
+      localStorage.removeItem(GAME_CTX_KEY)
+    }
+  }, [])
 
   function saveName(name) {
     setPlayerName(name)
@@ -92,34 +109,24 @@ export default function App() {
   async function handleCreateGame() {
     const code = generateCode()
     const name = generateGameName()
-    const { data: game, error } = await supabase
-      .from('games')
-      .insert({ code, name, difficulty: 'medium' })
-      .select()
-      .single()
-
-    if (error || !game) return
-
+    const { data: game } = await supabase
+      .from('games').insert({ code, name, difficulty: 'medium' }).select().single()
+    if (!game) return
     const { data: player } = await supabase
-      .from('game_players')
-      .insert({ game_id: game.id, name: playerName, role: 'player' })
-      .select()
-      .single()
-
+      .from('game_players').insert({ game_id: game.id, name: playerName, role: 'player' }).select().single()
     if (!player) return
-
-    setGameCtx({ game, puzzle: null, myPlayerId: player.id })
+    setGameCtx({ game, puzzle: null, myPlayerId: player.id, myRole: 'player' })
     setScreen('lobby')
   }
 
-  // ── Join Game ──────────────────────────────────────────────────
+  // ── Join: step 1 — look up game, show role choice ─────────────
   async function handleJoin(code) {
     setJoinLoading(true)
     setJoinError(null)
 
     const { data: games } = await supabase
       .from('games')
-      .select('*')
+      .select('*, game_players(id, role)')
       .eq('code', code.toUpperCase())
       .in('status', ['lobby', 'active'])
       .limit(1)
@@ -130,91 +137,95 @@ export default function App() {
       return
     }
 
-    const game = games[0]
+    const game        = games[0]
+    const playerCount = (game.game_players || []).filter(p => p.role === 'player').length
+    const specCount   = (game.game_players || []).filter(p => p.role === 'spectator').length
 
-    // Check player limit (8 players max)
-    const { count } = await supabase
-      .from('game_players')
-      .select('id', { count: 'exact', head: true })
-      .eq('game_id', game.id)
-      .eq('role', 'player')
-
-    if (count >= 8) {
-      setJoinError('This game is full (8 players max).')
+    if (specCount >= 20) {
+      setJoinError('This game already has the maximum 20 spectators.')
       setJoinLoading(false)
+      return
+    }
+
+    setJoinLoading(false)
+    setPendingJoin({ game, playerCount })
+  }
+
+  // ── Join: step 2 — confirm role and insert ────────────────────
+  async function handleConfirmRole(role) {
+    const { game, playerCount } = pendingJoin
+    setPendingJoin(null)
+
+    if (role === 'player' && playerCount >= 8) {
+      setJoinError('This game is full (8 players max).')
       return
     }
 
     const joinedLate = game.status === 'active'
     const { data: player } = await supabase
       .from('game_players')
-      .insert({ game_id: game.id, name: playerName, role: 'player', joined_late: joinedLate })
-      .select()
-      .single()
+      .insert({ game_id: game.id, name: playerName, role, joined_late: joinedLate && role === 'player' })
+      .select().single()
 
-    if (!player) {
-      setJoinError('Failed to join. Please try again.')
-      setJoinLoading(false)
-      return
-    }
+    if (!player) { setJoinError('Failed to join. Please try again.'); return }
 
-    setJoinLoading(false)
-
-    if (joinedLate) {
-      // Fetch puzzle and go straight to the game
+    if (game.status === 'active') {
       const { data: puzzle } = await supabase
-        .from('puzzles')
-        .select('id, grid, solution')
-        .eq('id', game.puzzle_id)
-        .single()
-      setGameCtx({ game, puzzle, myPlayerId: player.id })
-      setScreen('multiplayer')
+        .from('puzzles').select('id, grid, solution').eq('id', game.puzzle_id).single()
+      setGameCtx({ game, puzzle, myPlayerId: player.id, myRole: role })
+      setScreen(role === 'spectator' ? 'spectating' : 'multiplayer')
     } else {
-      setGameCtx({ game, puzzle: null, myPlayerId: player.id })
+      setGameCtx({ game, puzzle: null, myPlayerId: player.id, myRole: role })
       setScreen('lobby')
     }
   }
 
-  // ── Lobby: game starts ─────────────────────────────────────────
+  // ── Lobby → game starts ────────────────────────────────────────
   async function handleGameStart(updatedGame) {
-    // Fetch puzzle data
     const { data: puzzle } = await supabase
-      .from('puzzles')
-      .select('id, grid, solution')
-      .eq('id', updatedGame.puzzle_id)
-      .single()
-
-    setGameCtx(ctx => ({ ...ctx, game: updatedGame, puzzle }))
-    setScreen('multiplayer')
+      .from('puzzles').select('id, grid, solution').eq('id', updatedGame.puzzle_id).single()
+    const newCtx = { ...gameCtx, game: updatedGame, puzzle }
+    setGameCtx(newCtx)
+    setScreen(newCtx.myRole === 'spectator' ? 'spectating' : 'multiplayer')
   }
 
-  // ── Multiplayer: game finishes ─────────────────────────────────
+  // ── Game / spectator finish ────────────────────────────────────
   function handleGameFinish(finalGame, finalPlayers) {
+    localStorage.removeItem(GAME_CTX_KEY)
     setGameResult({ game: finalGame, players: finalPlayers })
     setScreen('results')
   }
 
-  // ── Play Again: new lobby with same group ──────────────────────
+  // ── Rejoin ─────────────────────────────────────────────────────
+  async function handleRejoin() {
+    const { gameId, playerId, role } = rejoinCtx
+    const { data: game } = await supabase.from('games').select('*').eq('id', gameId).single()
+    if (!game || game.status !== 'active') {
+      localStorage.removeItem(GAME_CTX_KEY); setRejoinCtx(null); return
+    }
+    const { data: playerRow } = await supabase.from('game_players').select('*').eq('id', playerId).single()
+    if (!playerRow) {
+      localStorage.removeItem(GAME_CTX_KEY); setRejoinCtx(null); return
+    }
+    const { data: puzzle } = await supabase
+      .from('puzzles').select('id, grid, solution').eq('id', game.puzzle_id).single()
+
+    setRejoinCtx(null)
+    setGameCtx({ game, puzzle, myPlayerId: playerId, myRole: role, initialPlayerRow: playerRow })
+    setScreen(role === 'spectator' ? 'spectating' : 'multiplayer')
+  }
+
+  // ── Play Again ─────────────────────────────────────────────────
   async function handlePlayAgain() {
     const code = generateCode()
     const name = generateGameName()
     const { data: newGame } = await supabase
-      .from('games')
-      .insert({ code, name, difficulty: gameResult.game.difficulty })
-      .select()
-      .single()
-
+      .from('games').insert({ code, name, difficulty: gameResult.game.difficulty }).select().single()
     if (!newGame) return
-
     const { data: player } = await supabase
-      .from('game_players')
-      .insert({ game_id: newGame.id, name: playerName, role: 'player' })
-      .select()
-      .single()
-
+      .from('game_players').insert({ game_id: newGame.id, name: playerName, role: 'player' }).select().single()
     if (!player) return
-
-    setGameCtx({ game: newGame, puzzle: null, myPlayerId: player.id })
+    setGameCtx({ game: newGame, puzzle: null, myPlayerId: player.id, myRole: 'player' })
     setGameResult(null)
     setScreen('lobby')
   }
@@ -233,44 +244,42 @@ export default function App() {
           onCreateGame={handleCreateGame}
           onJoinGame={() => { setJoinError(null); setScreen('join') }}
           onDailyPuzzle={() => setComingSoon('Daily Puzzle')}
+          rejoinGame={rejoinCtx}
+          onRejoin={handleRejoin}
         />
       )}
 
       {!showNamePrompt && screen === 'join' && (
-        <JoinScreen
-          onJoin={handleJoin}
-          onBack={() => setScreen('home')}
-          loading={joinLoading}
-          error={joinError}
-        />
+        <JoinScreen onJoin={handleJoin} onBack={() => setScreen('home')}
+          loading={joinLoading} error={joinError} />
       )}
 
       {!showNamePrompt && screen === 'practice' && (
-        <GameScreen
-          settings={settings}
-          updateSetting={updateSetting}
-          onHome={() => setScreen('home')}
-        />
+        <GameScreen settings={settings} updateSetting={updateSetting} onHome={() => setScreen('home')} />
       )}
 
       {!showNamePrompt && screen === 'lobby' && gameCtx && (
-        <LobbyScreen
-          game={gameCtx.game}
-          myPlayerId={gameCtx.myPlayerId}
-          playerName={playerName}
-          onGameStart={handleGameStart}
-          onLeave={() => setScreen('home')}
-        />
+        <LobbyScreen game={gameCtx.game} myPlayerId={gameCtx.myPlayerId}
+          playerName={playerName} onGameStart={handleGameStart}
+          onLeave={() => setScreen('home')} />
       )}
 
       {!showNamePrompt && screen === 'multiplayer' && gameCtx?.puzzle && (
         <MultiplayerGameScreen
-          key={gameCtx.game.id}
-          game={gameCtx.game}
-          puzzle={gameCtx.puzzle}
-          myPlayerId={gameCtx.myPlayerId}
-          playerName={playerName}
-          settings={settings}
+          key={gameCtx.game.id + (gameCtx.initialPlayerRow ? '-rejoin' : '')}
+          game={gameCtx.game} puzzle={gameCtx.puzzle}
+          myPlayerId={gameCtx.myPlayerId} playerName={playerName}
+          settings={settings} initialPlayerRow={gameCtx.initialPlayerRow}
+          onFinish={handleGameFinish}
+          onLeave={() => { setScreen('home'); setGameCtx(null) }}
+        />
+      )}
+
+      {!showNamePrompt && screen === 'spectating' && gameCtx?.puzzle && (
+        <SpectatorGameScreen
+          key={gameCtx.game.id + '-spectator'}
+          game={gameCtx.game} puzzle={gameCtx.puzzle}
+          myPlayerId={gameCtx.myPlayerId} playerName={playerName}
           onFinish={handleGameFinish}
           onLeave={() => { setScreen('home'); setGameCtx(null) }}
         />
@@ -278,11 +287,20 @@ export default function App() {
 
       {!showNamePrompt && screen === 'results' && gameResult && (
         <ResultsScreen
-          game={gameResult.game}
-          players={gameResult.players}
+          game={gameResult.game} players={gameResult.players}
           myPlayerId={gameCtx?.myPlayerId}
           onPlayAgain={handlePlayAgain}
           onHome={() => { setScreen('home'); setGameResult(null); setGameCtx(null) }}
+        />
+      )}
+
+      {/* Role choice modal — shown after finding a game */}
+      {pendingJoin && (
+        <RoleChoiceModal
+          game={pendingJoin.game}
+          playerCount={pendingJoin.playerCount}
+          onChoose={handleConfirmRole}
+          onCancel={() => setPendingJoin(null)}
         />
       )}
 

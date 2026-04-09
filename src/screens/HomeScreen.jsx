@@ -1,4 +1,4 @@
-export default function HomeScreen({ playerName, onChangeName, onPractice, onCreateGame, onJoinGame, onDailyPuzzle }) {
+export default function HomeScreen({ playerName, onChangeName, onPractice, onCreateGame, onJoinGame, onDailyPuzzle, rejoinGame, onRejoin }) {
   return (
     <div className="home-screen">
       <div className="home-screen__header">
@@ -17,6 +17,19 @@ export default function HomeScreen({ playerName, onChangeName, onPractice, onCre
         </button>
       </div>
 
+      {/* Rejoin banner */}
+      {rejoinGame && (
+        <div className="rejoin-banner">
+          <div className="rejoin-banner__info">
+            <span className="rejoin-banner__label">Game in progress</span>
+            <span className="rejoin-banner__name">{rejoinGame.gameName || rejoinGame.gameCode}</span>
+          </div>
+          <button className="btn btn--primary rejoin-banner__btn" onClick={onRejoin}>
+            Rejoin
+          </button>
+        </div>
+      )}
+
       <div className="home-screen__buttons">
         <button className="home-btn home-btn--primary" onClick={onPractice}>
           <span className="home-btn__icon">🧩</span>
@@ -33,7 +46,7 @@ export default function HomeScreen({ playerName, onChangeName, onPractice, onCre
         <button className="home-btn home-btn--secondary" onClick={onJoinGame}>
           <span className="home-btn__icon">🔗</span>
           <span className="home-btn__label">Join Game</span>
-          <span className="home-btn__sub">Enter a game code</span>
+          <span className="home-btn__sub">Browse open games or enter a code</span>
         </button>
 
         <button className="home-btn home-btn--daily" onClick={onDailyPuzzle}>
