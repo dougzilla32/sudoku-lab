@@ -94,26 +94,28 @@ export default function JoinScreen({ onJoin, onBack, loading, error }) {
                 onClick={() => onJoin(g.code)}
                 disabled={loading}
               >
-                <span
-                  className="game-list-row__diff"
-                  style={{ color: DIFF_COLOR[g.difficulty] }}
-                >
-                  {g.difficulty.charAt(0).toUpperCase() + g.difficulty.slice(1)}
-                </span>
-                <span className="game-list-row__code">{g.code}</span>
-                <span className="game-list-row__players">
-                  {playerCount(g)}/8
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 3 }}>
-                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <path d="M23 21v-2a4 4 0 00-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 010 7.75"/>
-                  </svg>
-                </span>
-                {g.mistake_limit && (
-                  <span className="game-list-row__tag">{g.mistake_limit} mistakes</span>
-                )}
-                <span className="game-list-row__join">Join →</span>
+                <div className="game-list-row__info">
+                  <span className="game-list-row__name">{g.name || g.code}</span>
+                  <span
+                    className="game-list-row__diff"
+                    style={{ color: DIFF_COLOR[g.difficulty] }}
+                  >
+                    {g.difficulty.charAt(0).toUpperCase() + g.difficulty.slice(1)}
+                    {g.mistake_limit ? ` · ${g.mistake_limit} mistakes` : ''}
+                  </span>
+                </div>
+                <div className="game-list-row__right">
+                  <span className="game-list-row__players">
+                    {playerCount(g)}/8
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 3 }}>
+                      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                      <circle cx="9" cy="7" r="4"/>
+                      <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                      <path d="M16 3.13a4 4 0 010 7.75"/>
+                    </svg>
+                  </span>
+                  <span className="game-list-row__join">Join →</span>
+                </div>
               </button>
             ))}
           </div>

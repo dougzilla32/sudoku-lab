@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from './supabaseClient'
 import { generateCode } from './lib/gameCode'
+import { generateGameName } from './lib/gameName'
 import { useSettings } from './hooks/useSettings'
 import HomeScreen from './screens/HomeScreen'
 import GameScreen from './screens/GameScreen'
@@ -90,9 +91,10 @@ export default function App() {
   // ── Create Game ────────────────────────────────────────────────
   async function handleCreateGame() {
     const code = generateCode()
+    const name = generateGameName()
     const { data: game, error } = await supabase
       .from('games')
-      .insert({ code, difficulty: 'medium' })
+      .insert({ code, name, difficulty: 'medium' })
       .select()
       .single()
 
@@ -195,9 +197,10 @@ export default function App() {
   // ── Play Again: new lobby with same group ──────────────────────
   async function handlePlayAgain() {
     const code = generateCode()
+    const name = generateGameName()
     const { data: newGame } = await supabase
       .from('games')
-      .insert({ code, difficulty: gameResult.game.difficulty })
+      .insert({ code, name, difficulty: gameResult.game.difficulty })
       .select()
       .single()
 

@@ -158,7 +158,9 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
           </svg>
           Leave
         </button>
-        <h2 className="lobby-header__title">Game Lobby</h2>
+        <div className="lobby-header__titles">
+          <h2 className="lobby-header__title">{game.name || 'Game Lobby'}</h2>
+        </div>
         <div style={{ width: 80 }} />
       </div>
 
