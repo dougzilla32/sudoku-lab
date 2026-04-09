@@ -68,6 +68,8 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
         if (eventType === 'INSERT') {
           setPlayers(p => [...p, row])
           addNotice(`${row.name} joined the lobby`)
+          // Someone joined — clear the empty marker if it was set
+          supabase.from('games').update({ empty_since: null }).eq('id', game.id)
         } else if (eventType === 'UPDATE') {
           setPlayers(p => p.map(pl => pl.id === row.id ? row : pl))
         } else if (eventType === 'DELETE') {
@@ -137,6 +139,16 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
 
   async function leaveGame() {
     await supabase.from('game_players').delete().eq('id', myPlayerId)
+
+    // If this was the last real player, mark game as empty for cleanup
+    const remainingPlayers = players.filter(p => p.id !== myPlayerId && p.role === 'player')
+    if (remainingPlayers.length === 0) {
+      await supabase
+        .from('games')
+        .update({ empty_since: new Date().toISOString() })
+        .eq('id', game.id)
+    }
+
     onLeave()
   }
 

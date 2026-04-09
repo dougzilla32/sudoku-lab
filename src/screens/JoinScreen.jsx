@@ -14,11 +14,21 @@ export default function JoinScreen({ onJoin, onBack, loading, error }) {
   const [fetching, setFetching]   = useState(true)
   const [code, setCode]           = useState('')
 
+  // ── Clean up stale empty lobbies (empty for > 5 min) ──────────
+  async function cleanupStaleGames() {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    await supabase
+      .from('games')
+      .delete()
+      .eq('status', 'lobby')
+      .lt('empty_since', cutoff)
+  }
+
   // ── Fetch open lobbies ─────────────────────────────────────────
   async function fetchGames() {
     const { data: games } = await supabase
       .from('games')
-      .select('id, code, difficulty, mistake_limit, created_at, game_players(id, role)')
+      .select('id, code, name, difficulty, mistake_limit, created_at, game_players(id, role)')
       .eq('status', 'lobby')
       .order('created_at', { ascending: false })
       .limit(20)
@@ -27,7 +37,9 @@ export default function JoinScreen({ onJoin, onBack, loading, error }) {
     setFetching(false)
   }
 
-  useEffect(() => { fetchGames() }, [])
+  useEffect(() => {
+    cleanupStaleGames().then(fetchGames)
+  }, [])
 
   // ── Realtime: keep list fresh ──────────────────────────────────
   useEffect(() => {
