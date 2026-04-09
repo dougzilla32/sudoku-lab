@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
+import ConfirmModal from '../components/ConfirmModal'
 import { formatTime, getConflicts, getPeers, getSameDigitCells, parsePuzzle } from '../lib/sudoku'
 import Board from '../components/Board'
 import NumberPad from '../components/NumberPad'
@@ -16,6 +17,7 @@ export default function MultiplayerGameScreen({
   playerName,
   settings,
   onFinish,   // (finalGame, finalPlayers) => void — navigate to results
+  onLeave,    // () => void — abandon game and go home
 }) {
   // ── Puzzle & local board state ──────────────────────────────────
   const solution   = puzzle.solution.split('')
@@ -31,7 +33,8 @@ export default function MultiplayerGameScreen({
   const [eliminated, setEliminated]   = useState(false)
   const [myFinished, setMyFinished]   = useState(false)
   const [myFinishTime, setMyFinishTime] = useState(null)
-  const [showCheat, setShowCheat]     = useState(false)
+  const [showCheat, setShowCheat]       = useState(false)
+  const [confirmLeave, setConfirmLeave] = useState(false)
 
   // ── Other players' states ──────────────────────────────────────
   const [allPlayers, setAllPlayers] = useState([])
@@ -223,6 +226,11 @@ export default function MultiplayerGameScreen({
     await persistCells(newCells, extraFields)
   }
 
+  async function leaveGame() {
+    await supabase.from('game_players').delete().eq('id', myPlayerId)
+    onLeave()
+  }
+
   async function cheatFill() {
     if (myFinished || eliminated) return
     const newCells = cells.map((c, i) =>
@@ -282,7 +290,12 @@ export default function MultiplayerGameScreen({
     <div className="game-screen mp-game-screen">
       {/* Header */}
       <div className="game-screen__header">
-        <div className="game-screen__meta" style={{ flex: 1 }}>
+        <button className="back-btn" onClick={() => setConfirmLeave(true)}>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <div className="game-screen__meta">
           <span className="game-screen__difficulty">{initialGame.difficulty}</span>
           {eliminated && <span className="mp-eliminated-badge">Eliminated</span>}
           {showCheat && !myFinished && (
@@ -328,6 +341,17 @@ export default function MultiplayerGameScreen({
         onUndo={() => {}}   // no undo in multiplayer
         onHint={useHint}
       />
+
+      {confirmLeave && (
+        <ConfirmModal
+          title="Abandon the game?"
+          message="You'll be removed from the race and your progress will be lost. Other players will keep playing."
+          confirmLabel="Leave"
+          cancelLabel="Keep playing"
+          onConfirm={leaveGame}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      )}
 
       {/* Finished overlay */}
       {myFinished && !allDone && (

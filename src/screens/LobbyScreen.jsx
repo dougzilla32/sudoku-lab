@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
+import ConfirmModal from '../components/ConfirmModal'
 
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'expert']
 const MISTAKE_OPTIONS = [
@@ -9,9 +10,10 @@ const MISTAKE_OPTIONS = [
 ]
 
 export default function LobbyScreen({ game: initialGame, myPlayerId, playerName, onGameStart, onLeave }) {
-  const [game, setGame]       = useState(initialGame)
-  const [players, setPlayers] = useState([])
-  const [notices, setNotices] = useState([])  // { id, text }
+  const [game, setGame]           = useState(initialGame)
+  const [players, setPlayers]     = useState([])
+  const [notices, setNotices]     = useState([])  // { id, text }
+  const [confirmLeave, setConfirmLeave] = useState(false)
   const prevGame = useRef(initialGame)
 
   // ── Fetch initial player list ──────────────────────────────────
@@ -164,7 +166,7 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
     <div className="lobby-screen">
       {/* Header */}
       <div className="lobby-header">
-        <button className="back-btn" onClick={leaveGame}>
+        <button className="back-btn" onClick={() => setConfirmLeave(true)}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
@@ -269,6 +271,17 @@ export default function LobbyScreen({ game: initialGame, myPlayerId, playerName,
       >
         Start Game
       </button>
+
+      {confirmLeave && (
+        <ConfirmModal
+          title="Leave the lobby?"
+          message="You'll be removed from this game. You can rejoin later with the game code."
+          confirmLabel="Leave"
+          cancelLabel="Stay"
+          onConfirm={leaveGame}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      )}
     </div>
   )
 }

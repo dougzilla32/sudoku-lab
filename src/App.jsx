@@ -272,6 +272,7 @@ export default function App() {
           playerName={playerName}
           settings={settings}
           onFinish={handleGameFinish}
+          onLeave={() => { setScreen('home'); setGameCtx(null) }}
         />
       )}
 
