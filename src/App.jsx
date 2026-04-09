@@ -7,7 +7,7 @@ import GameScreen from './screens/GameScreen'
 import LobbyScreen from './screens/LobbyScreen'
 import MultiplayerGameScreen from './screens/MultiplayerGameScreen'
 import ResultsScreen from './screens/ResultsScreen'
-import JoinModal from './components/JoinModal'
+import JoinScreen from './screens/JoinScreen'
 
 const NAME_KEY = 'sudokulab_name'
 
@@ -69,18 +69,17 @@ export default function App() {
   })
   const [editingName, setEditingName] = useState(false)
 
-  // Screen: 'home' | 'practice' | 'lobby' | 'multiplayer' | 'results'
+  // Screen: 'home' | 'practice' | 'join' | 'lobby' | 'multiplayer' | 'results'
   const [screen, setScreen] = useState('home')
 
   // Multiplayer context
   const [gameCtx, setGameCtx]     = useState(null)  // { game, puzzle, myPlayerId }
   const [gameResult, setGameResult] = useState(null) // { game, players }
 
-  // UI modals
-  const [showJoin, setShowJoin]     = useState(false)
+  // UI state
   const [joinLoading, setJoinLoading] = useState(false)
-  const [joinError, setJoinError]   = useState(null)
-  const [comingSoon, setComingSoon] = useState(null)
+  const [joinError, setJoinError]     = useState(null)
+  const [comingSoon, setComingSoon]   = useState(null)
 
   function saveName(name) {
     setPlayerName(name)
@@ -158,7 +157,6 @@ export default function App() {
     }
 
     setJoinLoading(false)
-    setShowJoin(false)
 
     if (joinedLate) {
       // Fetch puzzle and go straight to the game
@@ -230,8 +228,17 @@ export default function App() {
           onChangeName={() => setEditingName(true)}
           onPractice={() => setScreen('practice')}
           onCreateGame={handleCreateGame}
-          onJoinGame={() => { setShowJoin(true); setJoinError(null) }}
+          onJoinGame={() => { setJoinError(null); setScreen('join') }}
           onDailyPuzzle={() => setComingSoon('Daily Puzzle')}
+        />
+      )}
+
+      {!showNamePrompt && screen === 'join' && (
+        <JoinScreen
+          onJoin={handleJoin}
+          onBack={() => setScreen('home')}
+          loading={joinLoading}
+          error={joinError}
         />
       )}
 
@@ -272,16 +279,6 @@ export default function App() {
           myPlayerId={gameCtx?.myPlayerId}
           onPlayAgain={handlePlayAgain}
           onHome={() => { setScreen('home'); setGameResult(null); setGameCtx(null) }}
-        />
-      )}
-
-      {/* Join modal */}
-      {showJoin && (
-        <JoinModal
-          onJoin={handleJoin}
-          onClose={() => setShowJoin(false)}
-          loading={joinLoading}
-          error={joinError}
         />
       )}
 

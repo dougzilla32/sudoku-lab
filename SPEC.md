@@ -4,8 +4,8 @@ A multiplayer Sudoku game where friends can play together in real time.
 
 ## Overview
 
-Players create a game (choosing difficulty and options), which appears in the lobby. Others join
-via a shareable game code or link. Any player in the lobby can start the game — there is no
+Players create a game (choosing difficulty and options), which appears in the public game browser.
+Others can join from the browser or via a shareable game code. Any player in the lobby can start the game — there is no
 designated host. All players receive the same puzzle and race to complete it. Players see each
 other's progress via opponent mini-grids showing correct/incorrect status — but never the actual
 digits another player entered. Spectators, however, can see all players' full boards.
@@ -15,12 +15,15 @@ digits another player entered. Spectators, however, can see all players' full bo
 ## Screens
 
 1. **Home** — buttons: Create Game, Join Game, Practice (solo), Daily Puzzle
-2. **Lobby** — shows the game code/link, a player list with ready status, and the chosen game
+2. **Join Game** — shows a live list of open lobbies (difficulty, code, player count); any row
+   can be tapped to join instantly. Also includes a "Join by code" field for active or private
+   games not shown in the browser.
+3. **Lobby** — shows the game code/link, a player list with ready status, and the chosen game
    options. Any player can edit the options or press Start. The Start button is available as soon
    as at least 1 player is present. Players can join a game in progress directly from the lobby
    (or via the game code while a game is running).
-3. **Game** — the Sudoku board with controls, a timer, opponent mini-grids, and a reactions bar.
-4. **Results** — finishing order, each player's time, and mistakes/hints used. Includes a Play
+4. **Game** — the Sudoku board with controls, a timer, opponent mini-grids, and a reactions bar.
+5. **Results** — finishing order, each player's time, and mistakes/hints used. Includes a Play
    Again button and a Share Result button.
 
 ---

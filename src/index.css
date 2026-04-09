@@ -747,6 +747,128 @@ button:disabled { opacity: 0.4; cursor: default; }
   }
 }
 
+/* ── Join Screen ─────────────────────────────────────────────────── */
+.join-screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  padding: 0.5rem 1.25rem 2rem;
+  gap: 1.5rem;
+}
+
+.join-screen__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.join-screen__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.join-screen__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.join-screen__section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
+.join-screen__dim {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.join-screen__empty {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.join-screen__code-form {
+  display: flex;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.join-screen__code-form .btn {
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+/* ── Game list (open lobbies) ────────────────────────────────────── */
+.game-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.game-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  cursor: pointer;
+  width: 100%;
+}
+.game-list-row:hover { background: var(--btn-hover); border-color: var(--accent); }
+.game-list-row:active { transform: scale(0.99); }
+
+.game-list-row__diff {
+  font-size: 0.85rem;
+  font-weight: 700;
+  min-width: 52px;
+}
+
+.game-list-row__code {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  flex: 1;
+}
+
+.game-list-row__players {
+  display: flex;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  gap: 2px;
+}
+
+.game-list-row__tag {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.game-list-row__join {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 /* ── Join Modal code input ───────────────────────────────────────── */
 .join-modal h2 { font-size: 1.3rem; }
 
