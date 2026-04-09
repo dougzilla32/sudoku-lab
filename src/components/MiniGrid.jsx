@@ -1,6 +1,7 @@
 // Opponent mini-grid shown during multiplayer games.
-// cells: array of 81 numbers (0=empty, positive=correct, negative=wrong)
-export default function MiniGrid({ name, cells = [], finished, disconnected }) {
+// cells: array of 81 numbers (0=empty, positive=correct/given, negative=wrong)
+// puzzleGrid: 81-char string of the puzzle — non-zero chars are givens (shown grey)
+export default function MiniGrid({ name, cells = [], finished, disconnected, puzzleGrid = '' }) {
   const filled = cells.length === 81 ? cells : Array(81).fill(0)
 
   const nonEmpty = filled.filter(v => v !== 0).length
@@ -18,9 +19,10 @@ export default function MiniGrid({ name, cells = [], finished, disconnected }) {
             <div key={boxRow * 3 + boxCol} className="mini-grid__box">
               {Array.from({ length: 3 }, (_, cellRow) =>
                 Array.from({ length: 3 }, (_, cellCol) => {
-                  const idx = (boxRow * 3 + cellRow) * 9 + (boxCol * 3 + cellCol)
-                  const v   = filled[idx]
-                  const cls = v === 0 ? '' : v > 0 ? ' mini-cell--correct' : ' mini-cell--wrong'
+                  const idx   = (boxRow * 3 + cellRow) * 9 + (boxCol * 3 + cellCol)
+                  const v     = filled[idx]
+                  const given = puzzleGrid.length === 81 && puzzleGrid[idx] !== '0'
+                  const cls   = v === 0 ? '' : given ? ' mini-cell--given' : v > 0 ? ' mini-cell--correct' : ' mini-cell--wrong'
                   return <div key={cellRow * 3 + cellCol} className={`mini-cell${cls}`} />
                 })
               )}

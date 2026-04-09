@@ -16,7 +16,7 @@ const NAME_KEY     = 'sudokulab_name'
 const GAME_CTX_KEY = 'sudokulab_game_ctx'
 
 // ── Name prompt ───────────────────────────────────────────────────
-function NamePrompt({ onSave }) {
+function NamePrompt({ onSave, onCancel }) {
   const [value, setValue] = useState('')
   function submit(e) {
     e.preventDefault()
@@ -24,8 +24,15 @@ function NamePrompt({ onSave }) {
     if (name) onSave(name)
   }
   return (
-    <div className="modal-overlay">
-      <div className="modal name-prompt">
+    <div className="modal-overlay" onClick={onCancel || undefined}>
+      <div className="modal name-prompt" onClick={e => e.stopPropagation()}>
+        {onCancel && (
+          <button className="modal-close-btn" onClick={onCancel} aria-label="Cancel">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        )}
         <h2>Welcome to Sudoku Lab!</h2>
         <p>What should we call you?</p>
         <form onSubmit={submit}>
@@ -109,8 +116,9 @@ export default function App() {
   async function handleCreateGame() {
     const code = generateCode()
     const name = generateGameName()
-    const { data: game } = await supabase
+    const { data: game, error: gameErr } = await supabase
       .from('games').insert({ code, name, difficulty: 'medium' }).select().single()
+    if (gameErr) console.error('Create game error:', gameErr)
     if (!game) return
     const { data: player } = await supabase
       .from('game_players').insert({ game_id: game.id, name: playerName, role: 'player' }).select().single()
@@ -234,7 +242,7 @@ export default function App() {
 
   return (
     <div className="app">
-      {showNamePrompt && <NamePrompt onSave={saveName} />}
+      {showNamePrompt && <NamePrompt onSave={saveName} onCancel={editingName ? () => setEditingName(false) : null} />}
 
       {!showNamePrompt && screen === 'home' && (
         <HomeScreen

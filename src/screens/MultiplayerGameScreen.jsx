@@ -11,6 +11,22 @@ const MAX_HINTS    = 3
 const HINT_PENALTY = 30
 const EMOJI_TTL    = 2500
 
+// ── Spectator helpers ──────────────────────────────────────────
+function deriveCells(puzzleGrid, storedCells) {
+  const arr = storedCells?.length === 81 ? storedCells : Array(81).fill(0)
+  return puzzleGrid.split('').map((ch, i) => {
+    const given = parseInt(ch, 10)
+    if (given > 0) return { digit: given, isGiven: true }
+    const v = arr[i] || 0
+    return { digit: Math.abs(v), isGiven: false }
+  })
+}
+
+function wrongSet(storedCells) {
+  const arr = storedCells?.length === 81 ? storedCells : []
+  return new Set(arr.reduce((acc, v, i) => { if (v < 0) acc.push(i); return acc }, []))
+}
+
 // ── Serialization helpers ───────────────────────────────────────
 function serializeCells(cells) {
   return cells.map(c => {
@@ -74,6 +90,7 @@ export default function MultiplayerGameScreen({
   )
   const [myFinished, setMyFinished]     = useState(() => !!initialPlayerRow?.finished_at)
   const [myFinishTime, setMyFinishTime] = useState(null)
+  const [watchingPlayer, setWatchingPlayer] = useState(null)
   const [showCheat, setShowCheat]       = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [floatingEmojis, setFloatingEmojis] = useState([])
@@ -92,6 +109,14 @@ export default function MultiplayerGameScreen({
     }, 1000)
     return () => clearInterval(iv)
   }, [initialGame.started_at, myFinished])
+
+  // ── Auto-select a player to watch when we finish ─────────────
+  useEffect(() => {
+    if (!myFinished || watchingPlayer !== null) return
+    const first = allPlayers.find(p => p.id !== myPlayerId && p.role === 'player' && !p.finished_at)
+      || allPlayers.find(p => p.id !== myPlayerId && p.role === 'player')
+    if (first) setWatchingPlayer(first.id)
+  }, [myFinished, allPlayers, myPlayerId, watchingPlayer])
 
   // ── Save game context for reconnection ────────────────────────
   useEffect(() => {
@@ -149,10 +174,9 @@ export default function MultiplayerGameScreen({
   }
 
   function handleReact(emoji) {
-    reactionsRef.current?.send({
-      type: 'broadcast', event: 'reaction',
-      payload: { playerId: myPlayerId, playerName, emoji },
-    })
+    const payload = { playerId: myPlayerId, playerName, emoji }
+    addEmoji(payload)
+    reactionsRef.current?.send({ type: 'broadcast', event: 'reaction', payload })
   }
 
   // ── Check if all players finished ────────────────────────────
@@ -310,6 +334,100 @@ export default function MultiplayerGameScreen({
   const opponents = allPlayers.filter(p => p.id !== myPlayerId && p.role === 'player')
   const allDone   = allPlayers.filter(p => p.role === 'player').every(p => p.finished_at)
 
+  // ── Spectator view: finished player watches others ─────────────
+  if (myFinished && !allDone) {
+    const watchingData  = allPlayers.find(p => p.id === watchingPlayer)
+    const watchingCells = watchingData
+      ? deriveCells(puzzle.grid, watchingData.cells)
+      : Array(81).fill({ digit: 0, isGiven: false })
+    const watchingWrong = watchingData ? wrongSet(watchingData.cells) : new Set()
+    const emptyNotes    = Array.from({ length: 81 }, () => new Set())
+
+    return (
+      <div className="game-screen mp-game-screen spectator-screen">
+        {/* Header */}
+        <div className="game-screen__header">
+          <button className="back-btn" onClick={() => setConfirmLeave(true)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <div className="game-screen__meta">
+            {initialGame.name && <span className="game-screen__game-name">{initialGame.name}</span>}
+            <span className="game-screen__difficulty">{initialGame.difficulty}</span>
+            <span className="spectator-badge">watching</span>
+          </div>
+          <div className="game-screen__timer" style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+            You: {formatTime((myFinishTime ?? elapsed) + hintPenalty)}
+          </div>
+        </div>
+
+        {/* Player selector strip */}
+        {opponents.length > 0 && (
+          <div className="spectator-player-strip">
+            {opponents.map(p => (
+              <button
+                key={p.id}
+                className={`spectator-player-tab${p.id === watchingPlayer ? ' spectator-player-tab--active' : ''}`}
+                onClick={() => setWatchingPlayer(p.id)}
+              >
+                <span className="spectator-player-tab__name">{p.name}</span>
+                <span className={`spectator-player-tab__status${p.finished_at ? ' done' : ''}`}>
+                  {p.finished_at ? 'Done' : `${Math.round(((p.cells?.length === 81 ? p.cells.filter(v => v !== 0).length : 0) / 81) * 100)}%`}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Full board of watched player */}
+        <Board
+          cells={watchingCells}
+          notes={emptyNotes}
+          selected={null}
+          setSelected={() => {}}
+          conflicts={watchingWrong}
+          peers={new Set()}
+          sameDigits={new Set()}
+          settings={{ highlightDuplicates: true, highlightSelection: false }}
+        />
+
+        {/* Mini-grids of other opponents */}
+        {opponents.length > 1 && (
+          <div className="mp-opponents">
+            {opponents.filter(p => p.id !== watchingPlayer).map(op => (
+              <MiniGrid key={op.id} name={op.name} cells={op.cells}
+                finished={!!op.finished_at} disconnected={!op.connected} puzzleGrid={puzzle.grid} />
+            ))}
+          </div>
+        )}
+
+        {/* Reactions */}
+        <ReactionsBar onReact={handleReact} />
+
+        {/* Floating emoji reactions */}
+        {floatingEmojis.length > 0 && (
+          <div className="floating-emojis">
+            {floatingEmojis.map(fe => (
+              <div key={fe.id} className="floating-emoji">
+                <span className="floating-emoji__emoji">{fe.emoji}</span>
+                <span className="floating-emoji__name">{fe.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {confirmLeave && (
+          <ConfirmModal title="Leave game?"
+            message="You'll be removed from the race. Other players will keep playing."
+            confirmLabel="Leave" cancelLabel="Keep watching"
+            onConfirm={leaveGame} onCancel={() => setConfirmLeave(false)} />
+        )}
+      </div>
+    )
+  }
+
+  // ── Playing view ───────────────────────────────────────────────
   return (
     <div className="game-screen mp-game-screen">
       {/* Header */}
@@ -320,6 +438,7 @@ export default function MultiplayerGameScreen({
           </svg>
         </button>
         <div className="game-screen__meta">
+          {initialGame.name && <span className="game-screen__game-name">{initialGame.name}</span>}
           <span className="game-screen__difficulty">{initialGame.difficulty}</span>
           {eliminated && <span className="mp-eliminated-badge">Eliminated</span>}
           {showCheat && !myFinished && <button className="cheat-btn" onClick={cheatFill}>⚡ Fill</button>}
@@ -332,7 +451,7 @@ export default function MultiplayerGameScreen({
         <div className="mp-opponents">
           {opponents.map(op => (
             <MiniGrid key={op.id} name={op.name} cells={op.cells}
-              finished={!!op.finished_at} disconnected={!op.connected} />
+              finished={!!op.finished_at} disconnected={!op.connected} puzzleGrid={puzzle.grid} />
           ))}
         </div>
       )}
@@ -365,18 +484,6 @@ export default function MultiplayerGameScreen({
           message="You'll be removed from the race and your progress will be lost. Other players will keep playing."
           confirmLabel="Leave" cancelLabel="Keep playing"
           onConfirm={leaveGame} onCancel={() => setConfirmLeave(false)} />
-      )}
-
-      {/* Finished / waiting overlay */}
-      {myFinished && !allDone && (
-        <div className="mp-waiting-overlay">
-          <div className="mp-waiting-card">
-            <div style={{ fontSize: '2rem' }}>🎉</div>
-            <h3>Finished!</h3>
-            <p style={{ color: 'var(--text-dim)' }}>{formatTime((myFinishTime ?? elapsed) + hintPenalty)}</p>
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Waiting for other players…</p>
-          </div>
-        </div>
       )}
     </div>
   )

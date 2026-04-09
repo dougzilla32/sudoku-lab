@@ -134,16 +134,12 @@ export default function JoinScreen({ onJoin, onBack, loading, error }) {
         )}
       </div>
 
-      {/* Join by code (for active games or private games) */}
-      <div className="join-screen__section">
-        <h3 className="join-screen__section-title">Join by Code</h3>
-        <p className="join-screen__dim" style={{ marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-          Have a code for an active or private game?
-        </p>
-        <form onSubmit={handleCodeSubmit} className="join-screen__code-form">
+      {/* Join by code (secondary, for private/active games) */}
+      <div className="join-screen__by-code">
+        <span className="join-screen__by-code-label">Have a code?</span>
+        <form onSubmit={handleCodeSubmit} className="join-screen__by-code-form">
           <input
-            className="code-input"
-            style={{ fontSize: '1.5rem', minHeight: '52px' }}
+            className="join-screen__by-code-input"
             type="text"
             placeholder="ABCD12"
             value={code}
@@ -153,14 +149,14 @@ export default function JoinScreen({ onJoin, onBack, loading, error }) {
             autoCapitalize="characters"
           />
           <button
-            className="btn btn--primary"
+            className="btn btn--ghost join-screen__by-code-btn"
             type="submit"
             disabled={code.trim().length !== 6 || loading}
           >
-            {loading ? 'Joining…' : 'Join'}
+            {loading ? '…' : 'Join'}
           </button>
         </form>
-        {error && <p style={{ color: 'var(--red)', fontSize: '0.875rem', marginTop: '0.5rem' }}>{error}</p>}
+        {error && <p style={{ color: 'var(--red)', fontSize: '0.8rem', marginTop: '0.4rem' }}>{error}</p>}
       </div>
     </div>
   )

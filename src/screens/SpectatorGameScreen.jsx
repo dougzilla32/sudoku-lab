@@ -120,10 +120,9 @@ export default function SpectatorGameScreen({
   }
 
   function handleReact(emoji) {
-    reactionsRef.current?.send({
-      type: 'broadcast', event: 'reaction',
-      payload: { playerId: myPlayerId, playerName, emoji },
-    })
+    const payload = { playerId: myPlayerId, playerName, emoji }
+    addEmoji(payload)
+    reactionsRef.current?.send({ type: 'broadcast', event: 'reaction', payload })
   }
 
   async function leaveGame() {
@@ -194,6 +193,7 @@ export default function SpectatorGameScreen({
               cells={op.cells}
               finished={!!op.finished_at}
               disconnected={!op.connected}
+              puzzleGrid={puzzle.grid}
             />
           ))}
         </div>
